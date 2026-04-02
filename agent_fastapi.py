@@ -2404,8 +2404,20 @@ async def ws_chat(ws: WebSocket, session_id: str):
 
                                     layers = planner.plan(prompt, ps)
                                     if layers:
+                                        _NODE_CN = {
+                                            "load_media": "加载素材", "search_media": "搜索素材",
+                                            "split_shots": "镜头分割", "asr": "语音识别",
+                                            "speech_rough_cut": "口播粗剪", "understand_clips": "画面理解",
+                                            "filter_clips": "片段筛选", "group_clips": "片段分组",
+                                            "script_template_rec": "模板推荐", "generate_script": "文案生成",
+                                            "tts": "语音合成", "music_rec": "音乐选择",
+                                            "transition_rec": "转场推荐", "text_rec": "字体推荐",
+                                            "plan_timeline": "时间线编排", "render": "视频渲染",
+                                        }
+                                        def _cn(n): return _NODE_CN.get(n, n)
                                         node_names = [n for layer in layers for n in layer]
-                                        await out_q.put(("assistant.delta", f"增量执行计划: {' → '.join(['[' + ','.join(l) + ']' for l in layers])}\n"))
+                                        plan_str = ' → '.join(['[' + ', '.join(_cn(n) for n in l) + ']' for l in layers])
+                                        await out_q.put(("assistant.delta", f"执行计划: {plan_str}\n"))
                                         await out_q.put(("assistant.delta", f"共 {len(node_names)} 个节点 (全量 {len(orch['dag'].nodes)} 个)\n\n"))
 
                                         results = await worker.execute_plan(layers)

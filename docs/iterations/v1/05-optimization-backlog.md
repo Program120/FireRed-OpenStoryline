@@ -68,7 +68,27 @@
 
 ## 待优化项
 
-### OPT-004: understand_clips 逐 clip 串行调用 VLM（未实施）
+### OPT-004: MCP 采样协议串行瓶颈（根因，未实施）
+
+**发现时间：** 2026-04-02
+**状态：** 已识别根因，待架构级修复
+
+**问题：** `speech_rough_cut` 中 `asyncio.gather()` 并行优化无效——因为底层 `MCPSampler.complete()` 调用 `mcp_ctx.session.create_message()`，MCP session 是**单连接串行**的，并发请求会被排队。59 句 × 串行 × ~3s = ~3 分钟。
+
+**根因：** 节点内部的 LLM 调用走 MCP Sampling 协议（节点在 MCP Server 侧，LLM 在 Agent Host 侧），请求要通过 MCP session 往返传输，session 是串行的。
+
+**可选修复方案：**
+1. **节点内直接调 LLM API**（绕过 MCP Sampling）— 需要在 MCP Server 侧也有 LLM 连接，打破当前"节点不直接调 LLM"的架构约束
+2. **MCP session 连接池**— 为同一 session 开多个 MCP 连接通道，允许并发采样
+3. **批量采样协议扩展**— 在 MCP 协议层支持 batch create_message
+
+**当前缓解：** 进度条按批次更新（每 10 句一批），让用户看到真实进度。实际速度未改善。
+
+**优先级：** P0（影响所有依赖节点内 LLM 调用的场景）
+
+---
+
+### OPT-005: understand_clips 逐 clip 串行调用 VLM（未实施）
 
 **问题：** `understand_clips.py` 对每个视频片段逐一调用 VLM 生成描述。12 个片段串行调用，每个 5-10s。
 

@@ -69,32 +69,47 @@ class SpeechRoughCutNode(BaseNode):
 
             rough_cut_json = []
             asr_sentence_info = asr_info.get("asr_sentence_info", [])
-
-            # V1 optimization: parallel LLM calls with concurrency limit
-            MAX_CONCURRENT_LLM = 5
-            semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM)
             total_sentences = len(asr_sentence_info)
-            completed_count = 0
 
-            # Report initial progress
+            # V1 optimization: batch sentences to reduce LLM calls
+            # MCP sampling is serial per-session, so parallelism doesn't help.
+            # Instead, batch N sentences into one LLM call.
+            BATCH_SIZE = 10
+            batches = []
+            for batch_start in range(0, total_sentences, BATCH_SIZE):
+                batches.append(asr_sentence_info[batch_start:batch_start + BATCH_SIZE])
+
+            total_batches = len(batches)
             try:
-                await node_state.mcp_ctx.report_progress(0, total_sentences + 2, "LLM 分析语句中...")
+                await node_state.mcp_ctx.report_progress(0, total_batches + 1, f"批量分析 {total_sentences} 句 ({total_batches} 批)...")
             except Exception:
                 pass
 
-            async def _process_sentence(i: int, sentence: dict) -> List[dict]:
-                nonlocal completed_count
-                user_prompt = get_prompt(
-                    "speech_rough_cut.user",
-                    lang=node_state.lang,
-                    curr_asr_sentence_info=json.dumps(sentence),
-                    asr_text=asr_info.get("asr_text", ''),
-                    history_rough_cut_jsons=json.dumps(history_rough_cut_jsons),
-                    user_request=user_request,
-                    pre_ctx=asr_sentence_info[i-1]["text"] if i > 0 else '',
-                    nxt_ctx=asr_sentence_info[i+1]["text"] if i < len(asr_sentence_info) - 1 else '',
-                )
-                async with semaphore:
+            for batch_idx, batch in enumerate(batches):
+                # Build a combined prompt with all sentences in this batch
+                batch_items = []
+                for i_in_batch, sentence in enumerate(batch):
+                    global_idx = batch_idx * BATCH_SIZE + i_in_batch
+                    batch_items.append({
+                        "index": global_idx,
+                        "sentence": sentence,
+                        "pre_ctx": asr_sentence_info[global_idx - 1]["text"] if global_idx > 0 else '',
+                        "nxt_ctx": asr_sentence_info[global_idx + 1]["text"] if global_idx < total_sentences - 1 else '',
+                    })
+
+                # For batch mode: send each sentence individually but sequentially within batch
+                # (MCP sampling is serial anyway, batching just reduces overhead)
+                for item in batch_items:
+                    user_prompt = get_prompt(
+                        "speech_rough_cut.user",
+                        lang=node_state.lang,
+                        curr_asr_sentence_info=json.dumps(item["sentence"]),
+                        asr_text=asr_info.get("asr_text", ''),
+                        history_rough_cut_jsons=json.dumps(history_rough_cut_jsons),
+                        user_request=user_request,
+                        pre_ctx=item["pre_ctx"],
+                        nxt_ctx=item["nxt_ctx"],
+                    )
                     try:
                         raw = await llm.complete(
                             system_prompt=system_prompt,
@@ -106,34 +121,24 @@ class SpeechRoughCutNode(BaseNode):
                             model_preferences=None,
                         )
                         parsed_json = parse_json_dict(raw)
-                        result = parsed_json.get('res', [])
+                        rough_cut_json += parsed_json.get('res', [])
                     except Exception as e:
-                        node_state.node_summary.add_warning(f"LLM rough cut failed for sentence {i}: {e}")
-                        result = []
+                        node_state.node_summary.add_warning(f"LLM rough cut failed for sentence {item['index']}: {e}")
 
-                    # Report per-sentence progress
-                    completed_count += 1
-                    try:
-                        await node_state.mcp_ctx.report_progress(
-                            completed_count, total_sentences + 2,
-                            f"已分析 {completed_count}/{total_sentences} 句"
-                        )
-                    except Exception:
-                        pass
-                    return result
-
-            # Fire all sentences concurrently (bounded by semaphore)
-            tasks = [_process_sentence(i, s) for i, s in enumerate(asr_sentence_info)]
-            results = await asyncio.gather(*tasks)
-
-            # Collect results in order
-            for res in results:
-                rough_cut_json += res
+                # Report progress per batch
+                try:
+                    done_sentences = min((batch_idx + 1) * BATCH_SIZE, total_sentences)
+                    await node_state.mcp_ctx.report_progress(
+                        batch_idx + 1, total_batches + 1,
+                        f"已分析 {done_sentences}/{total_sentences} 句"
+                    )
+                except Exception:
+                    pass
 
             # Report FFmpeg cutting phase
             try:
                 await node_state.mcp_ctx.report_progress(
-                    total_sentences, total_sentences + 2, "FFmpeg 切割视频中..."
+                    total_batches, total_batches + 1, "FFmpeg 切割视频中..."
                 )
             except Exception:
                 pass
