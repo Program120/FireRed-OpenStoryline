@@ -36,6 +36,13 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
+# ── Non-actionable messages: confirmations, greetings, etc. ──────
+# These should NOT trigger any node execution.
+_SKIP_PATTERNS: List[re.Pattern] = [
+    re.compile(r"^(可以|好的|行|OK|ok|嗯|对|没问题|确认|同意|开始吧|就这样|继续|go|yes|是的|好|确定|可以的|好的呢|okok|行吧|没事|不用了|谢谢|感谢|辛苦|棒|不错|挺好)[\s。！!？?~]*$", re.IGNORECASE),
+    re.compile(r"^.{0,5}(谢谢|感谢|辛苦了|太棒了|不错|挺好的|可以了|OK了|好了|完成了)[\s。！!？?~]*$", re.IGNORECASE),
+]
+
 # ── Intent → dirty node_kinds mapping (rule-based) ──────────────
 
 # Each rule is (compiled_regex, set_of_node_kinds_to_dirty).
@@ -93,14 +100,21 @@ class Planner:
     def __init__(self, dag: TaskDAG) -> None:
         self.dag = dag
 
-    def recognise_dirty_kinds(self, user_text: str) -> List[str]:
+    def recognise_dirty_kinds(self, user_text: str) -> Optional[List[str]]:
         """
         Return the list of node_kinds that should be marked dirty based
         on the user's editing instruction.
 
-        If no pattern matches, returns ["load_media"] to trigger a full
-        pipeline re-run from the root.
+        Returns None for non-actionable messages (confirmations, greetings).
+        Returns ["load_media"] to trigger full pipeline if no pattern matches.
         """
+        # Check for non-actionable messages first
+        text_stripped = user_text.strip()
+        for skip_pat in _SKIP_PATTERNS:
+            if skip_pat.search(text_stripped):
+                logger.info(f"[Planner] Non-actionable message detected, skipping: '{text_stripped}'")
+                return None
+
         for pattern, kinds in _INTENT_RULES:
             if pattern.search(user_text):
                 logger.info(f"[Planner] Matched intent rule → dirty kinds: {kinds}")
@@ -120,6 +134,10 @@ class Planner:
         execute in parallel).
         """
         dirty_kinds = self.recognise_dirty_kinds(user_text)
+
+        # Non-actionable message → no nodes to execute
+        if dirty_kinds is None:
+            return []
 
         # Mark dirty + propagate downstream
         all_dirty: Set[str] = set()

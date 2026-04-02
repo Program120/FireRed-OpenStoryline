@@ -84,9 +84,16 @@ class LocalASRNode(BaseNode):
         
         clips = inputs["split_shots"].get('clips', [])
         asr_model = self._load_asr_model()
+        total_clips = len(clips)
+
+        # Report initial progress
+        try:
+            await node_state.mcp_ctx.report_progress(0, total_clips, f"开始识别 {total_clips} 个片段...")
+        except Exception:
+            pass
 
         asr_infos = []
-        for clip in clips:
+        for clip_idx, clip in enumerate(clips):
             video_path = clip["path"]
             kind = clip["kind"]
             source_ref = clip.get("source_ref", {})
@@ -102,10 +109,14 @@ class LocalASRNode(BaseNode):
                     "fps": fps,
                     "asr_res": {},
                 })
+                try:
+                    await node_state.mcp_ctx.report_progress(clip_idx + 1, total_clips, f"已识别 {clip_idx + 1}/{total_clips} 个片段")
+                except Exception:
+                    pass
                 continue
-            
+
             with tempfile.TemporaryDirectory() as tmpdir:
-                
+
                 # extract audio wav from video clip, if no audio track, directly return empty asr text
                 audio_wav = self.extract_audio_wav(video_path, tmpdir)
                 if audio_wav is None:
@@ -118,13 +129,15 @@ class LocalASRNode(BaseNode):
                         "asr_res": {},
                     })
                     node_state.node_summary.info_for_llm(f"Clip {clip['clip_id']} has no audio track, skipped for asr.")
+                    try:
+                        await node_state.mcp_ctx.report_progress(clip_idx + 1, total_clips, f"已识别 {clip_idx + 1}/{total_clips} 个片段")
+                    except Exception:
+                        pass
                     continue
-                
-                # perform asr and get asr text, here we directly use the audio wav path as input for asr model, 
-                # since funasr can support audio file input and will handle the audio loading and feature extraction internally, 
-                # which can avoid the potential audio loading and feature extraction issues in different environments
+
+                # perform asr and get asr text
                 res = asr_model.generate(
-                    input=audio_wav, 
+                    input=audio_wav,
                     sentence_timestamp=True
                 )
                 asr_infos.append({
@@ -135,6 +148,12 @@ class LocalASRNode(BaseNode):
                     "fps": fps,
                     "asr_res": res[0] if res else {},
                 })
+
+            # Report per-clip progress
+            try:
+                await node_state.mcp_ctx.report_progress(clip_idx + 1, total_clips, f"已识别 {clip_idx + 1}/{total_clips} 个片段")
+            except Exception:
+                pass
 
         return {
             "asr_infos": asr_infos,
