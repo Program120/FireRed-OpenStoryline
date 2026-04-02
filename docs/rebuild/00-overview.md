@@ -24,6 +24,7 @@
 | 3 | **数据库驱动的状态管理** | 每个节点执行状态、LLM 交互全部持久化，支持任意节点恢复 |
 | 4 | **Session 隔离 + URL 路由** | 每个会话独立 URL，刷新后精确恢复 |
 | 5 | **前瞻性架构** | 预留多模型 Provider、团队协作、插件系统、API/SDK 接口 |
+| 6 | **用户认证 + 数据隔离** | 用户注册/登录，会话/媒体/模型配置用户间完全隔离 |
 
 ## 文档结构
 
@@ -37,7 +38,8 @@ docs/rebuild/
 ├── 05-frontend.md          # 前端架构 + 关键组件
 ├── 06-concurrency.md       # Skill 并发模型
 ├── 07-keep-vs-rewrite.md   # 保留 vs 重写 vs 删除清单
-└── 08-migration-plan.md    # 分阶段实施路线
+├── 08-migration-plan.md    # 分阶段实施路线
+└── 09-user-auth.md         # 用户认证与数据隔离
 ```
 
 ## 技术栈选型
