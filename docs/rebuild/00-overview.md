@@ -39,7 +39,8 @@ docs/rebuild/
 ├── 06-concurrency.md       # Skill 并发模型
 ├── 07-keep-vs-rewrite.md   # 保留 vs 重写 vs 删除清单
 ├── 08-migration-plan.md    # 分阶段实施路线
-└── 09-user-auth.md         # 用户认证与数据隔离
+├── 09-user-auth.md         # 用户认证与数据隔离
+└── 10-skill-registry.md    # Skill 仓库设计
 ```
 
 ## 技术栈选型
