@@ -207,6 +207,25 @@ async def log_tool_request(request, handler):
     return out
 
 
+def emit_tool_log(level: str, message: str, detail: str = ""):
+    """
+    Emit a detailed log event to the frontend during tool execution.
+
+    level: "info" | "debug" | "warn" | "error"
+    message: short summary line
+    detail: optional longer content (e.g., LLM prompt/response snippets)
+    """
+    sink = _MCP_LOG_SINK.get()
+    if sink:
+        sink({
+            "type": "tool_log",
+            "tool_call_id": _MCP_ACTIVE_TOOL_CALL_ID.get(),
+            "level": level,
+            "message": message,
+            "detail": detail[:2000] if detail else "",  # cap detail length
+        })
+
+
 async def on_progress(progress: float, total: float | None, message: str| None, context: CallbackContext):
     sink = _MCP_LOG_SINK.get()
     if sink:

@@ -13,6 +13,7 @@ from open_storyline.utils.ffmpeg_utils import (
     VideoSegment,
 )
 from open_storyline.utils.register import NODE_REGISTRY
+from open_storyline.mcp.hooks.chat_middleware import emit_tool_log
 
 CLIP_ID_NUMBER_WIDTH = 4
 MILLISECONDS_PER_SECOND = 1000.0
@@ -99,6 +100,8 @@ class SpeechRoughCutNode(BaseNode):
             )
 
             flagged_indices = set()
+            emit_tool_log("info", f"[预筛选] 发送 {total_sentences} 句给 LLM 批量审核",
+                          f"Prompt 摘要:\n{screen_prompt[:500]}...")
             try:
                 raw_screen = await llm.complete(
                     system_prompt="你是一个视频语音内容审核助手。快速判断哪些句子需要清洗处理。",
@@ -111,10 +114,14 @@ class SpeechRoughCutNode(BaseNode):
                 )
                 screen_result = parse_json_dict(raw_screen)
                 flagged_indices = set(screen_result.get("flagged", []))
+                emit_tool_log("info",
+                    f"[预筛选] LLM 返回: {len(flagged_indices)} 句需处理",
+                    f"flagged indices: {sorted(flagged_indices)}\nLLM 原始输出: {raw_screen[:500]}")
             except Exception as e:
                 # Screening failed → fall back to flagging all sentences
                 node_state.node_summary.add_warning(f"Batch screening failed: {e}, processing all sentences")
                 flagged_indices = set(range(total_sentences))
+                emit_tool_log("warn", f"[预筛选] 失败，降级为全量处理", str(e))
 
             try:
                 await node_state.mcp_ctx.report_progress(1, 3, f"预筛选完成: {len(flagged_indices)}/{total_sentences} 句需处理")
@@ -127,6 +134,11 @@ class SpeechRoughCutNode(BaseNode):
                 processed = 0
                 for i, sentence in enumerate(asr_sentence_info):
                     if i in flagged_indices:
+                        sent_text = sentence.get("text", "")
+                        emit_tool_log("info",
+                            f"[精细处理] 句 {i}: \"{sent_text[:50]}{'...' if len(sent_text) > 50 else ''}\"",
+                            f"完整句子: {json.dumps(sentence, ensure_ascii=False)}")
+
                         user_prompt = get_prompt(
                             "speech_rough_cut.user",
                             lang=node_state.lang,
@@ -148,11 +160,16 @@ class SpeechRoughCutNode(BaseNode):
                                 model_preferences=None,
                             )
                             parsed_json = parse_json_dict(raw)
-                            rough_cut_json += parsed_json.get('res', [])
+                            res = parsed_json.get('res', [])
+                            rough_cut_json += res
+                            action = "保留" if res else "删除"
+                            emit_tool_log("info",
+                                f"[精细处理] 句 {i} → {action} ({len(res)} 段)",
+                                f"LLM 判断: {parsed_json.get('reason', '')}\n结果: {json.dumps(res, ensure_ascii=False)[:300]}")
                         except Exception as e:
                             node_state.node_summary.add_warning(f"LLM rough cut failed for sentence {i}: {e}")
-                            # Fallback: keep original sentence
                             rough_cut_json.append({"text": sentence.get("text", ""), "start": sentence.get("start", 0), "end": sentence.get("end", 0)})
+                            emit_tool_log("error", f"[精细处理] 句 {i} LLM 调用失败，保留原句", str(e))
                         processed += 1
                         try:
                             await node_state.mcp_ctx.report_progress(

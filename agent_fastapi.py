@@ -1437,7 +1437,7 @@ class ChatSession:
     def apply_tool_event(self, raw: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         et = raw.get("type")
         tcid = raw.get("tool_call_id")
-        if et not in ("tool_start", "tool_progress", "tool_end") or not tcid:
+        if et not in ("tool_start", "tool_progress", "tool_end", "tool_log") or not tcid:
             return None
 
         server = raw.get("server") or ""
@@ -1484,6 +1484,16 @@ class ChatSession:
                 "progress": 1.0,
                 "summary": summary,
                 "message": raw.get("message") or rec.get("message") or "",
+            })
+
+        elif et == "tool_log":
+            # Append log entry to tool record for frontend display
+            if "logs" not in rec:
+                rec["logs"] = []
+            rec["logs"].append({
+                "level": raw.get("level", "info"),
+                "message": raw.get("message", ""),
+                "detail": raw.get("detail", ""),
             })
 
         return rec
@@ -2816,6 +2826,16 @@ async def ws_chat(ws: WebSocket, session_id: str):
                                                     "name": rec["name"],
                                                     "progress": rec["progress"],
                                                     "message": rec["message"],
+                                                })
+                                            elif raw["type"] == "tool_log":
+                                                log_entry = rec.get("logs", [{}])[-1] if rec.get("logs") else {}
+                                                await emit_turn_event("tool.log", {
+                                                    "tool_call_id": rec["tool_call_id"],
+                                                    "server": rec.get("server", ""),
+                                                    "name": rec.get("name", ""),
+                                                    "level": log_entry.get("level", "info"),
+                                                    "message": log_entry.get("message", ""),
+                                                    "detail": log_entry.get("detail", ""),
                                                 })
                                             elif raw["type"] == "tool_end":
                                                 await emit_turn_event("tool.end", {
