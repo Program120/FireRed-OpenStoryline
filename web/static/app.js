@@ -4221,9 +4221,9 @@ class App {
     panel.appendChild(hd);
     panel.appendChild(body);
 
-    // Insert button after the tool-card details element, panel below it
+    // Insert both button and panel inside the tool card wrapper
     dom.wrap.appendChild(btn);
-    dom.wrap.after(panel);
+    dom.wrap.appendChild(panel);
 
     dom._logPanel = true;
     dom._logBtnEl = btn;
