@@ -240,3 +240,57 @@ async def build_agent(
         context_schema=ClientContext,
     )
     return agent, node_manager
+
+
+async def build_orchestrator_agent(
+    cfg: Settings,
+    session_id: str,
+    store: ArtifactStore,
+    tool_interceptors=None,
+    *,
+    llm_override: Optional[dict] = None,
+    vlm_override: Optional[dict] = None,
+    media_dir: Optional[str] = None,
+    lang: str = "zh",
+):
+    """
+    Build the V1 orchestrator alongside the existing V0 agent.
+
+    Shares the same LLM setup and MCP client creation as ``build_agent``,
+    but additionally constructs the Planner + Worker StateGraph for
+    incremental editing.
+
+    Returns ``(agent, node_manager, orchestrator_components)`` where
+    *orchestrator_components* is the dict from ``build_orchestrator()``.
+    When ``cfg.orchestrator.use_v1`` is False the orchestrator components
+    will be ``None`` (backward-compatible).
+    """
+    # Build the standard V0 agent first
+    agent, node_manager = await build_agent(
+        cfg,
+        session_id,
+        store,
+        tool_interceptors,
+        llm_override=llm_override,
+        vlm_override=vlm_override,
+    )
+
+    # Only build orchestrator when the V1 feature flag is on
+    if not getattr(cfg, "orchestrator", None) or not cfg.orchestrator.use_v1:
+        return agent, node_manager, None
+
+    from open_storyline.orchestrator.planner import (
+        build_orchestrator as _build_orchestrator,
+    )
+
+    orchestrator = _build_orchestrator(
+        node_manager=node_manager,
+        store=store,
+        session_id=session_id,
+        client_cfg=cfg,
+        media_dir=media_dir or str(cfg.project.media_dir),
+        lang=lang,
+        max_parallel=cfg.orchestrator.max_parallel_workers,
+    )
+
+    return agent, node_manager, orchestrator

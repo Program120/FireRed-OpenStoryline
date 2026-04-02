@@ -150,3 +150,33 @@ class ArtifactStore:
         if not candidates:
             return None
         return max(candidates, key=lambda m: m.created_at)
+
+    # ── V1 ProjectState persistence ──────────────────────────────
+
+    def _project_state_path(self) -> Path:
+        return self.blobs_dir / "project_state.json"
+
+    def save_project_state(self, state: "Any") -> None:
+        """Persist a ProjectState (pydantic model) to disk as JSON."""
+        path = self._project_state_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w", encoding="utf-8") as f:
+            f.write(state.model_dump_json(indent=2))
+        logger.info(f"[V1] ProjectState saved to {path}")
+
+    def load_project_state(self) -> Optional[Any]:
+        """Load a previously-saved ProjectState, or return None."""
+        from open_storyline.state.project_state import ProjectState
+
+        path = self._project_state_path()
+        if not path.exists():
+            return None
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+            ps = ProjectState.model_validate(data)
+            logger.info(f"[V1] ProjectState loaded from {path}")
+            return ps
+        except Exception as e:
+            logger.warning(f"[V1] Failed to load ProjectState: {e}")
+            return None

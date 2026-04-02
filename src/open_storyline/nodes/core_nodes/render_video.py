@@ -728,6 +728,22 @@ class RenderVideoPipeline:
             raise ValueError("timeline result has no video track")
 
         output_canvas_size = resolve_output_canvas_size(inputs)
+
+        # --- preview-mode overrides (480p, CRF=28, FPS=15) ---------------
+        preview_mode = inputs.get("preview_mode", False)
+        if preview_mode:
+            crf = 28
+            pw, ph = output_canvas_size
+            # Scale down to 480p (longest side = 480) while keeping ratio
+            if pw >= ph:
+                scale = 480 / pw
+            else:
+                scale = 480 / ph
+            output_canvas_size = (
+                make_even(max(2, int(round(pw * scale)))),
+                make_even(max(2, int(round(ph * scale)))),
+            )
+
         media_map = build_media_id_to_path_map(load_media)
 
         cache = MediaCache(
@@ -760,8 +776,10 @@ class RenderVideoPipeline:
                 cache=cache,
                 canvas_size=output_canvas_size,
                 final_duration_s=final_duration_s,
-                transition_rec=transition_rec
+                transition_rec=transition_rec,
             )
+            if preview_mode:
+                output_fps = min(output_fps, 15)
 
             # Build subtitle: add subtitle track on base video while `subtitle_clips` is not empty.
             subtitle_clips = subtitle_renderer.render(
