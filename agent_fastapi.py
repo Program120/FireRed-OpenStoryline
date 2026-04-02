@@ -1462,6 +1462,8 @@ class ChatSession:
             msg = raw.get("message") or ""
 
             # Check if this is a __log__ payload piggybacked on progress
+            if msg and msg.startswith("{") and "__log__" in msg:
+                print(f"[DEBUG] Detected __log__ in progress message: {msg[:100]}")
             if msg.startswith("{") and '"__log__"' in msg:
                 try:
                     log_data = json.loads(msg)

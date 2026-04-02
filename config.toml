@@ -11,17 +11,17 @@ outputs_dir = "./outputs"
 
 # ============= 模型配置 for user / Model Config for User =============
 [llm]
-model = ""
-base_url = ""
-api_key = "" 
+model = "qwen3.5-plus"
+base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+api_key = "sk-356ce0e3bcf542ff9b3392346b555d46" 
 timeout = 30.0 # 单位：秒
 temperature = 0.1
 max_retries = 2
 
 [vlm]
-model = ""
-base_url = ""
-api_key = "" 
+model = "qwen3.5-plus"
+base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+api_key = "sk-356ce0e3bcf542ff9b3392346b555d46" 
 timeout = 20.0 # 单位：秒
 temperature = 0.1
 max_retries = 2
@@ -148,3 +148,17 @@ short_text_margin_rate  = 0.0       # 短文本起始边距率 / short text star
 
 text_duration_mode = "with_tts"     # with_tts | with_clip (随配音 | 随片段)
 is_text_beats      = false          # 文字对齐音乐节拍 / align text with music beats
+
+# ============= V1 编排器 / V1 Orchestrator =============
+[orchestrator]
+use_v1 = true
+max_parallel_workers = 3
+
+# ============= V1 渲染配置 / V1 Render Config =============
+[render]
+engine = "moviepy"                  # moviepy | ffmpeg
+subtitle_template = "classic_white"
+
+# ============= V1 会话持久化 / V1 Session DB =============
+[session_db]
+db_path = ".storyline/sessions.db"
