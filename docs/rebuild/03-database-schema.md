@@ -21,10 +21,9 @@ users ──────┬──── sessions ─────────┬�
             │                                                 subtask_executions (self-ref)
             ├──── user_model_configs
             ├──── user_preferences
-            ├──── user_installed_skills
             └──── refresh_tokens
 
-skill_registry (管理员维护，独立)
+skill_registry (管理员维护，元数据索引，文件在本地 skills/ 目录)
 ```
 
 ## 表结构
@@ -231,49 +230,32 @@ CREATE TABLE user_preferences (
 );
 ```
 
-### skill_registry（Skill 仓库——管理员维护）
+### skill_registry（Skill 注册表——管理员维护）
+
+> **设计原则**：Skill 的文件内容（SKILL.md、handler.py、脚本、资源等）维护在**本地文件系统**中（`skills/` 目录），DB 只存元数据索引。这是因为 Skill 可能是一个完整仓库（含子目录、依赖、二进制资源），不适合存入 DB。
 
 ```sql
 CREATE TABLE skill_registry (
     skill_id     TEXT PRIMARY KEY,             -- "video-color-grading"
     name         TEXT NOT NULL,                -- "视频调色"
-    description  TEXT NOT NULL,
+    description  TEXT NOT NULL DEFAULT '',
     version      TEXT NOT NULL DEFAULT '1.0.0',
     author       TEXT NOT NULL DEFAULT 'system',
     category     TEXT NOT NULL DEFAULT 'general', -- video / audio / text / effect / utility
-    tags         TEXT NOT NULL DEFAULT '[]',    -- JSON array: ["调色", "LUT", "滤镜"]
-    skill_md     TEXT NOT NULL,                -- SKILL.md 完整内容
-    handler_code TEXT,                         -- handler.py 代码（可选）
-    pipeline_json TEXT NOT NULL DEFAULT '{}',  -- pipeline 配置 (depends_on, next_skills)
-    concurrency_json TEXT NOT NULL DEFAULT '{}', -- 并发配置
-    status       TEXT NOT NULL DEFAULT 'published', -- draft / published / deprecated
-    install_count INTEGER NOT NULL DEFAULT 0,
-    created_at   REAL NOT NULL,
-    updated_at   REAL NOT NULL,
-    created_by   TEXT NOT NULL REFERENCES users(user_id)
+    tags         TEXT NOT NULL DEFAULT '[]',    -- JSON array
+    local_path   TEXT NOT NULL,                -- 本地文件系统路径 (e.g. "skills/installed/video-color-grading")
+    source       TEXT NOT NULL DEFAULT 'builtin', -- builtin / installed / custom
+    status       TEXT NOT NULL DEFAULT 'active',  -- active / disabled
+    installed_at REAL NOT NULL,
+    installed_by TEXT REFERENCES users(user_id), -- 操作人 (管理员)
+    created_at   REAL NOT NULL
 );
 
 CREATE INDEX idx_skill_reg_category ON skill_registry(category);
 CREATE INDEX idx_skill_reg_status ON skill_registry(status);
 ```
 
-### user_installed_skills（用户已安装的 Skill）
-
-```sql
-CREATE TABLE user_installed_skills (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id      TEXT NOT NULL REFERENCES users(user_id),
-    skill_id     TEXT NOT NULL,
-    source       TEXT NOT NULL,                -- 'builtin' / 'registry' / 'custom' / 'generated'
-    enabled      BOOLEAN NOT NULL DEFAULT 1,
-    skill_md     TEXT NOT NULL,                -- 安装时的 SKILL.md 副本
-    handler_code TEXT,                         -- handler.py 副本
-    installed_at REAL NOT NULL,
-    UNIQUE(user_id, skill_id)
-);
-
-CREATE INDEX idx_user_skills ON user_installed_skills(user_id, enabled);
-```
+> **注意**：暂不设计 `user_installed_skills` 表（用户级 Skill 安装）。当前阶段 Skill 全局共享，由管理员统一管理。用户级 Skill 作为后续迭代考虑。
 
 ## 恢复逻辑
 
