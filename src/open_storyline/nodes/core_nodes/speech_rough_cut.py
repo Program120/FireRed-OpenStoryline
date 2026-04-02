@@ -73,8 +73,17 @@ class SpeechRoughCutNode(BaseNode):
             # V1 optimization: parallel LLM calls with concurrency limit
             MAX_CONCURRENT_LLM = 5
             semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM)
+            total_sentences = len(asr_sentence_info)
+            completed_count = 0
+
+            # Report initial progress
+            try:
+                await node_state.mcp_ctx.report_progress(0, total_sentences + 2, "LLM 分析语句中...")
+            except Exception:
+                pass
 
             async def _process_sentence(i: int, sentence: dict) -> List[dict]:
+                nonlocal completed_count
                 user_prompt = get_prompt(
                     "speech_rough_cut.user",
                     lang=node_state.lang,
@@ -97,10 +106,21 @@ class SpeechRoughCutNode(BaseNode):
                             model_preferences=None,
                         )
                         parsed_json = parse_json_dict(raw)
-                        return parsed_json.get('res', [])
+                        result = parsed_json.get('res', [])
                     except Exception as e:
                         node_state.node_summary.add_warning(f"LLM rough cut failed for sentence {i}: {e}")
-                        return []
+                        result = []
+
+                    # Report per-sentence progress
+                    completed_count += 1
+                    try:
+                        await node_state.mcp_ctx.report_progress(
+                            completed_count, total_sentences + 2,
+                            f"已分析 {completed_count}/{total_sentences} 句"
+                        )
+                    except Exception:
+                        pass
+                    return result
 
             # Fire all sentences concurrently (bounded by semaphore)
             tasks = [_process_sentence(i, s) for i, s in enumerate(asr_sentence_info)]
@@ -109,6 +129,14 @@ class SpeechRoughCutNode(BaseNode):
             # Collect results in order
             for res in results:
                 rough_cut_json += res
+
+            # Report FFmpeg cutting phase
+            try:
+                await node_state.mcp_ctx.report_progress(
+                    total_sentences, total_sentences + 2, "FFmpeg 切割视频中..."
+                )
+            except Exception:
+                pass
 
             # Group sentences based on gap threshold
             segments_groups = self.group_sentences(rough_cut_json, gap_threshold=gap_threshold)
@@ -133,6 +161,13 @@ class SpeechRoughCutNode(BaseNode):
             rough_cut_json = self.calibrate_asr_times(rough_cut_json, deleted_ranges)
             rough_cut_jsons.append(rough_cut_json)
 
+            # Report completion
+            try:
+                await node_state.mcp_ctx.report_progress(
+                    total_sentences + 2, total_sentences + 2, "粗剪完成"
+                )
+            except Exception:
+                pass
 
             # Generate final clip metadata
             clip_index = 0
