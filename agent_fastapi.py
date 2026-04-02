@@ -54,6 +54,7 @@ from open_storyline.config import Settings
 from open_storyline.storage.agent_memory import ArtifactStore
 from open_storyline.mcp.hooks.node_interceptors import ToolInterceptor
 from open_storyline.mcp.hooks.chat_middleware import set_mcp_log_sink, reset_mcp_log_sink
+from open_storyline.storage.session_db import SessionDB
 
 WEB_DIR = os.path.join(ROOT_DIR, "web")
 STATIC_DIR = os.path.join(WEB_DIR, "static")
@@ -1529,7 +1530,10 @@ async def lifespan(app: FastAPI):
     app.state.cfg = cfg
     app.state.developer_mode = is_developer_mode(cfg)
     app.state.sessions = SessionStore(cfg)
+    db_path = os.path.join(ROOT_DIR, ".storyline", "sessions.db")
+    app.state.session_db = SessionDB(db_path)
     yield
+    app.state.session_db.close()
 
 
 app = FastAPI(title="OpenStoryline Web", version="1.0.0", lifespan=lifespan)
@@ -2113,6 +2117,13 @@ async def preview_local_file(session_id: str, path: str):
         filename=os.path.basename(ap),
         headers=headers,
     )
+
+@api.get("/sessions/{session_id}/tools/{tool_call_id}/logs")
+async def get_tool_logs(session_id: str, tool_call_id: str):
+    """Return persisted tool logs for a specific tool call from SQLite."""
+    sdb: SessionDB = app.state.session_db
+    logs = sdb.get_tool_logs(session_id, tool_call_id)
+    return JSONResponse(logs)
 
 app.include_router(api)
 
@@ -2837,6 +2848,19 @@ async def ws_chat(ws: WebSocket, session_id: str):
                                                     "message": log_entry.get("message", ""),
                                                     "detail": log_entry.get("detail", ""),
                                                 })
+                                                # Persist tool log to SQLite
+                                                try:
+                                                    sdb: SessionDB = app.state.session_db
+                                                    sdb.save_tool_log(
+                                                        session_id=session_id,
+                                                        tool_call_id=rec["tool_call_id"],
+                                                        tool_name=rec.get("name", ""),
+                                                        level=log_entry.get("level", "info"),
+                                                        message=log_entry.get("message", ""),
+                                                        detail=log_entry.get("detail", ""),
+                                                    )
+                                                except Exception:
+                                                    pass
                                             elif raw["type"] == "tool_end":
                                                 await emit_turn_event("tool.end", {
                                                     "tool_call_id": rec["tool_call_id"],

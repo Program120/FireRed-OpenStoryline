@@ -46,8 +46,20 @@ CREATE TABLE IF NOT EXISTS user_profiles (
     updated_at   REAL NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS tool_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    tool_call_id TEXT NOT NULL,
+    tool_name TEXT NOT NULL,
+    level TEXT DEFAULT 'info',
+    message TEXT NOT NULL,
+    detail TEXT DEFAULT '',
+    created_at REAL NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status);
 CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at);
+CREATE INDEX IF NOT EXISTS idx_tool_logs_session ON tool_logs(session_id, tool_call_id);
 """
 
 
@@ -211,3 +223,40 @@ class SessionDB:
         )
         row = cur.fetchone()
         return row["profile_json"] if row else None
+
+    # ── tool log persistence ─────────────────────────────────────
+
+    def save_tool_log(
+        self,
+        session_id: str,
+        tool_call_id: str,
+        tool_name: str,
+        level: str,
+        message: str,
+        detail: str = "",
+    ) -> None:
+        """Persist a single tool log entry."""
+        now = time.time()
+        conn = self._get_conn()
+        conn.execute(
+            """
+            INSERT INTO tool_logs (session_id, tool_call_id, tool_name, level, message, detail, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (session_id, tool_call_id, tool_name, level, message, detail, now),
+        )
+        conn.commit()
+
+    def get_tool_logs(self, session_id: str, tool_call_id: str) -> List[Dict[str, Any]]:
+        """Retrieve all log entries for a specific tool call, ordered by creation time."""
+        conn = self._get_conn()
+        cur = conn.execute(
+            """
+            SELECT id, session_id, tool_call_id, tool_name, level, message, detail, created_at
+            FROM tool_logs
+            WHERE session_id = ? AND tool_call_id = ?
+            ORDER BY created_at ASC, id ASC
+            """,
+            (session_id, tool_call_id),
+        )
+        return [dict(r) for r in cur.fetchall()]

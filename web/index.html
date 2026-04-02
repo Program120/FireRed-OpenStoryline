@@ -459,6 +459,18 @@
     <script type="module" src="/static/app.js"></script>
   </div>
 
+  <!-- Tool Log Detail Panel (slide-out) -->
+  <div id="toolLogOverlay" class="tool-log-overlay hidden"></div>
+  <aside id="toolLogPanel" class="tool-log-panel hidden" aria-label="Tool Log Detail">
+    <div class="tool-log-panel-header">
+      <span class="tool-log-panel-title" id="toolLogPanelTitle">Tool Logs</span>
+      <button class="tool-log-panel-close" id="toolLogPanelClose" aria-label="Close">&times;</button>
+    </div>
+    <div class="tool-log-panel-body" id="toolLogPanelBody">
+      <div class="tool-log-panel-loading" id="toolLogPanelLoading">Loading...</div>
+    </div>
+  </aside>
+
   <!-- 右侧开发者侧边栏（仅 developer_mode=true 时由 JS 显示） -->
   <aside id="devbar" class="devbar hidden collapsed" aria-label="开发者侧边栏">
     <div class="devbar-inner">

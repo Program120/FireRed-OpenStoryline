@@ -3741,6 +3741,20 @@ class App {
         this._setLang(next, { persist: true, syncServer: true });
       });
     }
+
+    // Tool log detail panel bindings
+    this._toolLogPanelOverlay = document.getElementById("toolLogOverlay");
+    this._toolLogPanel = document.getElementById("toolLogPanel");
+    this._toolLogPanelTitle = document.getElementById("toolLogPanelTitle");
+    this._toolLogPanelBody = document.getElementById("toolLogPanelBody");
+    this._toolLogPanelLoading = document.getElementById("toolLogPanelLoading");
+    const panelCloseBtn = document.getElementById("toolLogPanelClose");
+    if (panelCloseBtn) {
+      panelCloseBtn.addEventListener("click", () => this._closeToolLogPanel());
+    }
+    if (this._toolLogPanelOverlay) {
+      this._toolLogPanelOverlay.addEventListener("click", () => this._closeToolLogPanel());
+    }
   }
 
   async _handleFilesSelected(rawFiles) {
@@ -4023,6 +4037,25 @@ class App {
           logDom.details.open = true;
         }
         this.ui.maybeAutoScroll(this.ui.isNearBottom(), { behavior: "auto" });
+
+        // Add "view detail log" button if not already present
+        if (!logDom._detailLogBtn) {
+          const btn = document.createElement("button");
+          btn.className = "tool-detail-log-btn";
+          btn.textContent = this.lang === "zh" ? "查看详细日志" : "View Detail Logs";
+          btn.setAttribute("data-tool-call-id", data.tool_call_id);
+          const toolName = logDom.data && logDom.data.name ? logDom.data.name : "";
+          btn.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this._openToolLogPanel(data.tool_call_id, toolName);
+          });
+          // Insert button after the pre element in bodyWrap
+          if (logDom.pre.parentNode) {
+            logDom.pre.parentNode.insertBefore(btn, logDom.pre.nextSibling);
+          }
+          logDom._detailLogBtn = btn;
+        }
       }
       return;
     }
@@ -4165,6 +4198,111 @@ class App {
     // 发送后到 assistant.start 之间加锁，禁止切会话（不插入任何硬编码占位气泡）
     this._setSwitchLock();
     this.ws.send("chat.send", built.payload);
+  }
+
+  // ── Tool Log Detail Panel ──────────────────────────────
+  async _openToolLogPanel(toolCallId, toolName) {
+    if (!this._toolLogPanel || !this._toolLogPanelOverlay) return;
+
+    const displayName = toolName || toolCallId;
+    this._toolLogPanelTitle.textContent = this.lang === "zh"
+      ? `详细日志 - ${displayName}`
+      : `Detail Logs - ${displayName}`;
+
+    // Show overlay and panel
+    this._toolLogPanelOverlay.classList.remove("hidden");
+    this._toolLogPanel.classList.remove("hidden");
+    // Trigger reflow then add visible class for transition
+    void this._toolLogPanel.offsetHeight;
+    this._toolLogPanel.classList.add("visible");
+
+    // Show loading
+    this._toolLogPanelBody.innerHTML = "";
+    const loadingEl = document.createElement("div");
+    loadingEl.className = "tool-log-panel-loading";
+    loadingEl.textContent = this.lang === "zh" ? "加载中..." : "Loading...";
+    this._toolLogPanelBody.appendChild(loadingEl);
+
+    // Prevent body scroll
+    document.body.style.overflow = "hidden";
+
+    try {
+      const sid = encodeURIComponent(this.sessionId || "");
+      const tcid = encodeURIComponent(toolCallId || "");
+      const resp = await fetch(`/api/sessions/${sid}/tools/${tcid}/logs`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const logs = await resp.json();
+
+      this._toolLogPanelBody.innerHTML = "";
+
+      if (!logs || logs.length === 0) {
+        const emptyEl = document.createElement("div");
+        emptyEl.className = "tool-log-empty";
+        emptyEl.textContent = this.lang === "zh" ? "暂无详细日志" : "No logs available";
+        this._toolLogPanelBody.appendChild(emptyEl);
+        return;
+      }
+
+      for (const log of logs) {
+        const entry = document.createElement("div");
+        entry.className = "tool-log-entry";
+
+        const head = document.createElement("div");
+        head.className = "tool-log-entry-head";
+
+        const icon = document.createElement("span");
+        icon.className = "tool-log-entry-icon";
+        const lvl = log.level || "info";
+        icon.textContent = lvl === "error" ? "\u274C" : lvl === "warn" ? "\u26A0\uFE0F" : "\uD83D\uDCCB";
+
+        const msg = document.createElement("span");
+        msg.className = "tool-log-entry-msg";
+        msg.textContent = log.message || "";
+
+        const ts = document.createElement("span");
+        ts.className = "tool-log-entry-time";
+        if (log.created_at) {
+          const d = new Date(log.created_at * 1000);
+          ts.textContent = d.toLocaleTimeString();
+        }
+
+        head.appendChild(icon);
+        head.appendChild(msg);
+        head.appendChild(ts);
+        entry.appendChild(head);
+
+        if (log.detail) {
+          const detail = document.createElement("div");
+          detail.className = "tool-log-entry-detail";
+          detail.textContent = log.detail;
+          entry.appendChild(detail);
+        }
+
+        this._toolLogPanelBody.appendChild(entry);
+      }
+    } catch (err) {
+      this._toolLogPanelBody.innerHTML = "";
+      const errEl = document.createElement("div");
+      errEl.className = "tool-log-empty";
+      errEl.textContent = this.lang === "zh"
+        ? `加载失败: ${err.message || err}`
+        : `Failed to load: ${err.message || err}`;
+      this._toolLogPanelBody.appendChild(errEl);
+    }
+  }
+
+  _closeToolLogPanel() {
+    if (this._toolLogPanel) {
+      this._toolLogPanel.classList.remove("visible");
+      // Wait for transition to finish then hide
+      setTimeout(() => {
+        if (this._toolLogPanel) this._toolLogPanel.classList.add("hidden");
+      }, 260);
+    }
+    if (this._toolLogPanelOverlay) {
+      this._toolLogPanelOverlay.classList.add("hidden");
+    }
+    document.body.style.overflow = "";
   }
 
 }
