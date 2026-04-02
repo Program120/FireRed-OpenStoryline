@@ -1,5 +1,7 @@
 # 数据库模型设计
 
+> **本文档是所有数据库表的唯一权威来源（Single Source of Truth）。** 09-user-auth.md 和 10-skill-registry.md 中的表定义应视为说明性引用，以本文档为准。
+
 ---
 
 ## 设计原则
@@ -12,11 +14,17 @@
 ## ER 图
 
 ```
-sessions ─────────┬──── chat_messages
-                  ├──── media_files
-                  └──── pipeline_states ──── skill_executions ──── llm_interactions
-                                                    │
-                                             subtask_executions (self-ref)
+users ──────┬──── sessions ─────────┬──── chat_messages
+            │                       ├──── media_files
+            │                       └──── pipeline_states ──── skill_executions ──── llm_interactions
+            │                                                        │
+            │                                                 subtask_executions (self-ref)
+            ├──── user_model_configs
+            ├──── user_preferences
+            ├──── user_installed_skills
+            └──── refresh_tokens
+
+skill_registry (管理员维护，独立)
 ```
 
 ## 表结构
@@ -26,6 +34,7 @@ sessions ─────────┬──── chat_messages
 ```sql
 CREATE TABLE sessions (
     session_id   TEXT PRIMARY KEY,          -- UUID
+    user_id      TEXT NOT NULL REFERENCES users(user_id),
     display_name TEXT NOT NULL DEFAULT '',
     status       TEXT NOT NULL DEFAULT 'active',  -- active / paused / completed / archived
     lang         TEXT NOT NULL DEFAULT 'zh',
@@ -33,6 +42,8 @@ CREATE TABLE sessions (
     created_at   REAL NOT NULL,
     updated_at   REAL NOT NULL
 );
+
+CREATE INDEX idx_sessions_user ON sessions(user_id);
 ```
 
 ### pipeline_states（管道状态版本）
@@ -50,6 +61,8 @@ CREATE TABLE pipeline_states (
     created_at   REAL NOT NULL,
     UNIQUE(session_id, version)
 );
+
+CREATE INDEX idx_pipeline_session ON pipeline_states(session_id);
 ```
 
 ### skill_executions（Skill 执行记录）
@@ -82,6 +95,7 @@ CREATE TABLE skill_executions (
 
 CREATE INDEX idx_skill_exec_session ON skill_executions(session_id, pipeline_version);
 CREATE INDEX idx_skill_exec_parent ON skill_executions(parent_execution_id);
+CREATE INDEX idx_skill_exec_skill ON skill_executions(skill_id);
 ```
 
 ### llm_interactions（LLM 交互记录）
@@ -93,6 +107,7 @@ CREATE TABLE llm_interactions (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     execution_id     TEXT NOT NULL REFERENCES skill_executions(execution_id),
     session_id       TEXT NOT NULL,
+    user_id          TEXT NOT NULL REFERENCES users(user_id),  -- 便于按用户统计成本
     provider         TEXT NOT NULL,             -- "openai" / "anthropic" / "qwen"
     model            TEXT NOT NULL,             -- "qwen3.5-plus"
     role             TEXT NOT NULL DEFAULT 'chat', -- chat / vlm / tts
@@ -106,7 +121,8 @@ CREATE TABLE llm_interactions (
 );
 
 CREATE INDEX idx_llm_exec ON llm_interactions(execution_id);
-CREATE INDEX idx_llm_session ON llm_interactions(session_id);
+CREATE INDEX idx_llm_session ON llm_interactions(session_id, created_at);
+CREATE INDEX idx_llm_user ON llm_interactions(user_id);
 ```
 
 ### chat_messages（聊天消息）
@@ -146,6 +162,117 @@ CREATE TABLE media_files (
 );
 
 CREATE INDEX idx_media_session ON media_files(session_id);
+```
+
+### users（用户）
+
+```sql
+CREATE TABLE users (
+    user_id      TEXT PRIMARY KEY,          -- UUID
+    username     TEXT NOT NULL UNIQUE,
+    email        TEXT UNIQUE,
+    password_hash TEXT NOT NULL,
+    display_name TEXT NOT NULL DEFAULT '',
+    avatar_url   TEXT,
+    role         TEXT NOT NULL DEFAULT 'user',  -- 'admin' / 'user'
+    status       TEXT NOT NULL DEFAULT 'active',  -- active / disabled
+    created_at   REAL NOT NULL,
+    updated_at   REAL NOT NULL
+);
+```
+
+### refresh_tokens（刷新令牌）
+
+```sql
+CREATE TABLE refresh_tokens (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      TEXT NOT NULL REFERENCES users(user_id),
+    token_hash   TEXT NOT NULL UNIQUE,        -- bcrypt hash of refresh token
+    expires_at   REAL NOT NULL,
+    revoked      BOOLEAN NOT NULL DEFAULT 0,
+    created_at   REAL NOT NULL
+);
+
+CREATE INDEX idx_refresh_tokens_user ON refresh_tokens(user_id);
+```
+
+### user_model_configs（用户模型配置）
+
+```sql
+CREATE TABLE user_model_configs (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      TEXT NOT NULL REFERENCES users(user_id),
+    config_type  TEXT NOT NULL,                -- 'llm' / 'vlm' / 'tts_302' / 'tts_minimax' / 'tts_bytedance' / 'pexels'
+    provider     TEXT NOT NULL DEFAULT '',     -- 'openai' / 'anthropic' / 'qwen' / ...
+    model        TEXT NOT NULL DEFAULT '',
+    base_url     TEXT NOT NULL DEFAULT '',
+    api_key      TEXT NOT NULL DEFAULT '',     -- 加密存储
+    extra_json   TEXT NOT NULL DEFAULT '{}',   -- 扩展配置 (temperature, timeout 等)
+    is_default   BOOLEAN NOT NULL DEFAULT 0,
+    created_at   REAL NOT NULL,
+    updated_at   REAL NOT NULL,
+    UNIQUE(user_id, config_type, provider, model)
+);
+
+CREATE INDEX idx_user_model_configs_user ON user_model_configs(user_id);
+```
+
+### user_preferences（用户偏好）
+
+```sql
+CREATE TABLE user_preferences (
+    user_id              TEXT PRIMARY KEY REFERENCES users(user_id),
+    default_lang         TEXT NOT NULL DEFAULT 'zh',
+    default_aspect_ratio TEXT NOT NULL DEFAULT '16:9',
+    subtitle_style       TEXT NOT NULL DEFAULT 'classic_white',
+    audio_prefs_json     TEXT NOT NULL DEFAULT '{}',  -- bgm_volume, tts_volume 等
+    learned_prefs_json   TEXT NOT NULL DEFAULT '{}',  -- 自动学习的偏好
+    updated_at           REAL NOT NULL
+);
+```
+
+### skill_registry（Skill 仓库——管理员维护）
+
+```sql
+CREATE TABLE skill_registry (
+    skill_id     TEXT PRIMARY KEY,             -- "video-color-grading"
+    name         TEXT NOT NULL,                -- "视频调色"
+    description  TEXT NOT NULL,
+    version      TEXT NOT NULL DEFAULT '1.0.0',
+    author       TEXT NOT NULL DEFAULT 'system',
+    category     TEXT NOT NULL DEFAULT 'general', -- video / audio / text / effect / utility
+    tags         TEXT NOT NULL DEFAULT '[]',    -- JSON array: ["调色", "LUT", "滤镜"]
+    skill_md     TEXT NOT NULL,                -- SKILL.md 完整内容
+    handler_code TEXT,                         -- handler.py 代码（可选）
+    pipeline_json TEXT NOT NULL DEFAULT '{}',  -- pipeline 配置 (depends_on, next_skills)
+    concurrency_json TEXT NOT NULL DEFAULT '{}', -- 并发配置
+    status       TEXT NOT NULL DEFAULT 'published', -- draft / published / deprecated
+    install_count INTEGER NOT NULL DEFAULT 0,
+    created_at   REAL NOT NULL,
+    updated_at   REAL NOT NULL,
+    created_by   TEXT NOT NULL REFERENCES users(user_id)
+);
+
+CREATE INDEX idx_skill_reg_category ON skill_registry(category);
+CREATE INDEX idx_skill_reg_status ON skill_registry(status);
+```
+
+### user_installed_skills（用户已安装的 Skill）
+
+```sql
+CREATE TABLE user_installed_skills (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      TEXT NOT NULL REFERENCES users(user_id),
+    skill_id     TEXT NOT NULL,
+    source       TEXT NOT NULL,                -- 'builtin' / 'registry' / 'custom' / 'generated'
+    enabled      BOOLEAN NOT NULL DEFAULT 1,
+    skill_md     TEXT NOT NULL,                -- 安装时的 SKILL.md 副本
+    handler_code TEXT,                         -- handler.py 副本
+    installed_at REAL NOT NULL,
+    UNIQUE(user_id, skill_id)
+);
+
+CREATE INDEX idx_user_skills ON user_installed_skills(user_id, enabled);
 ```
 
 ## 恢复逻辑

@@ -98,7 +98,9 @@ firered-openstoryline/
 │   │       ├── media.py          # 媒体上传下载
 │   │       ├── chat.py           # WebSocket 聊天
 │   │       ├── pipeline.py       # Pipeline 状态 + 恢复
-│   │       └── skills.py         # Skill 列表 + 详情
+│   │       ├── skills.py         # Skill 列表 + 详情
+│   │       ├── auth.py           # 注册/登录/刷新/登出
+│   │       └── admin.py          # 管理员操作 (Skill 仓库管理)
 │   │
 │   ├── rendering/                # ── 渲染 (保留) ──
 │   │   ├── ffmpeg_renderer.py
@@ -139,6 +141,20 @@ firered-openstoryline/
 ├── resource/                     # 保留
 └── cli.py                        # 保留
 ```
+
+## 调用层级（单向，禁止循环导入）
+
+```
+WebSocket → Agent → Orchestrator.Planner → Executor → Skills
+```
+
+- **WebSocket** (`routers/chat.py`): 接收用户消息，调用 Agent
+- **Agent** (`agent/agent.py`): LLM 决策，调用 Orchestrator
+- **Orchestrator.Planner** (`orchestrator/planner.py`): 意图规划，生成执行计划
+- **Executor** (`orchestrator/executor.py`): 分层并行执行 Skill
+- **Skills** (`skills/`): 最底层，不反向依赖上层
+
+依赖方向严格单向：上层可以 import 下层，下层**不可以** import 上层。通过 `SkillContext` 注入所需的 DB/LLM/WebSocket 推送能力，避免 Skill 直接依赖 API 层。
 
 ## 与当前架构的关键差异
 

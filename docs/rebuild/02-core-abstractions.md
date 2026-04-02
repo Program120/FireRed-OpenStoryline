@@ -163,6 +163,10 @@ class Handler(SkillHandler):
 
 ## 2. SkillHandler 基类
 
+> **命名说明**：
+> - `SkillHandler` — `handler.py` 中的 Python 执行器基类，有复杂逻辑的 Skill 继承此类。
+> - `SkillMeta` — 从 `SKILL.md` 的 YAML frontmatter 解析而来的元数据（pipeline 配置、并发配置等），**不在 Python 代码中硬编码**。SkillHandler 通过 `self.meta` 访问。
+
 ```python
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -313,7 +317,62 @@ SkillExecutor:
 
 这也是**模型动态生成 Skill** 的执行方式——LLM 写的 SKILL.md 描述了执行逻辑，另一个 LLM 读取并执行。
 
-## 5. Skill 安装/管理 API
+## 5. Skill-Agent 集成
+
+Skill 通过以下方式成为 LangChain Agent 的可调用工具：
+
+```python
+# agent/tools.py
+from langchain_core.tools import StructuredTool
+
+def skills_to_langchain_tools(skill_loader: SkillLoader, ctx: SkillContext) -> list[StructuredTool]:
+    """将已加载的 Skill 转换为 LangChain tools，供 Agent 调用。"""
+    tools = []
+    for skill_id, loaded in skill_loader.skills.items():
+        tool = StructuredTool.from_function(
+            name=skill_id,
+            description=loaded.meta.get("description", ""),
+            func=lambda inputs, _s=loaded: execute_skill(_s, ctx, inputs),
+            coroutine=lambda inputs, _s=loaded: execute_skill_async(_s, ctx, inputs),
+        )
+        tools.append(tool)
+    return tools
+```
+
+Agent 构建时调用 `skills_to_langchain_tools()` 获取所有已启用 Skill 作为 tool binding。
+
+## 6. 多用户 Skill 加载
+
+> **重要**：对于多用户场景，installed/custom Skill 从数据库 `user_installed_skills` 表加载（每用户独立），仅 builtin Skill 从文件系统加载。
+
+```python
+class UserSkillLoader:
+    """按用户加载 Skill：builtin 从文件系统，installed/custom 从 DB。"""
+
+    def __init__(self, builtin_loader: SkillLoader, db: AsyncSession):
+        self.builtin_loader = builtin_loader
+        self.db = db
+
+    async def load_for_user(self, user_id: str) -> dict[str, LoadedSkill]:
+        # 1. builtin Skill（全局共享，从文件系统）
+        skills = dict(self.builtin_loader.skills)
+
+        # 2. 用户已安装的 Skill（从 DB）
+        rows = await self.db.query(UserInstalledSkill).filter(
+            UserInstalledSkill.user_id == user_id,
+            UserInstalledSkill.enabled == True,
+        ).all()
+        for row in rows:
+            meta = parse_skill_md_content(row.skill_md)
+            handler = load_handler_from_code(row.handler_code) if row.handler_code else None
+            skills[row.skill_id] = LoadedSkill(meta=meta, handler=handler, source=row.source)
+
+        return skills
+```
+
+## 7. Skill 安装/管理 API
+
+> **注意**：Skill 仓库的完整 API 设计见 `10-skill-registry.md`，该文档是 Skill 仓库 API 的权威来源。
 
 ```
 GET    /api/skills                     # 列出所有已安装 Skill
@@ -325,7 +384,7 @@ POST   /api/skills/{id}/enable         # 启用
 POST   /api/skills/{id}/disable        # 禁用
 ```
 
-## 6. Pipeline（从 Skill 自动构建 DAG）
+## 8. Pipeline（从 Skill 自动构建 DAG）
 
 ```python
 class Pipeline:
@@ -345,7 +404,7 @@ class Pipeline:
 
 新安装的 Skill 如果声明了 `depends_on` 和 `next_skills`，会自动融入 DAG。这就是 Skill 体系可扩展的关键。
 
-## 7. 与当前架构的对比
+## 9. 与当前架构的对比
 
 | 维度 | 当前 (BaseNode) | 重建后 (Skill) |
 |------|----------------|---------------|

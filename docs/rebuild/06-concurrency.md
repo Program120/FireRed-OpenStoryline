@@ -62,15 +62,12 @@ LLM_SEMAPHORE = asyncio.Semaphore(5)         # LLM API 调用并发限制
 ## 示例：UnderstandClips 并发实现
 
 ```python
-class UnderstandClipsSkill(BaseSkill):
-    meta = SkillMeta(
-        skill_id="understand_clips",
-        display_name="画面理解",
-        depends_on=["load_media", "split_shots"],
-        supports_batching=True,
-        default_batch_size=5,
-        max_concurrency=4,
-    )
+class UnderstandClipsHandler(SkillHandler):
+    """
+    handler.py for understand-clips skill.
+    SkillMeta (skill_id, depends_on, concurrency 等) 从 SKILL.md YAML frontmatter 解析，
+    不在 Python 代码中硬编码。通过 self.meta 访问。
+    """
 
     async def split_into_subtasks(self, inputs: dict) -> list[dict]:
         clips = inputs.get("clips", [])
@@ -135,6 +132,51 @@ async def on_subtask_done(batch_idx):
         "batch_total": total_batches,
     })
 ```
+
+## 错误处理
+
+### 单子任务失败
+
+当并行执行的某个子任务（batch）失败时：
+
+1. **默认行为：快速失败（fail-fast）** — 取消同 Skill 内其余未完成的子任务，整个 Skill 标记为 `failed`
+2. **可选行为：部分完成（partial completion）** — 在 SKILL.md 的 concurrency 配置中声明 `allow_partial: true`，已完成的子任务结果保留，仅失败的子任务标记错误
+
+```yaml
+# SKILL.md concurrency 配置示例
+concurrency:
+  supports_batching: true
+  batch_key: clips
+  default_batch_size: 5
+  max_concurrency: 4
+  allow_partial: false        # 默认 false = fail-fast
+```
+
+### 重试逻辑
+
+```python
+# BatchExecutor 内部
+async def execute_with_retry(handler, ctx, subtask, max_retries=2):
+    for attempt in range(max_retries + 1):
+        try:
+            return await handler.execute(ctx, subtask)
+        except RetryableError as e:
+            if attempt == max_retries:
+                raise
+            await asyncio.sleep(2 ** attempt)  # 指数退避
+            await ctx.log("warn", f"子任务重试 {attempt + 1}/{max_retries}: {e}")
+```
+
+- `RetryableError`：网络超时、API rate limit 等瞬态错误，自动重试
+- 其他异常：立即失败，不重试
+- 重试次数从 SKILL.md `concurrency.max_retries` 读取，默认 2
+
+### Pipeline 层级失败
+
+当某个 Skill 整体失败时：
+- 该 Skill 后续依赖的所有 Skill 标记为 `skipped`
+- 同层其他无依赖关系的 Skill 继续执行
+- Pipeline 最终状态为 `partial`，用户可修复问题后从失败节点恢复
 
 ## 与当前方案的对比
 

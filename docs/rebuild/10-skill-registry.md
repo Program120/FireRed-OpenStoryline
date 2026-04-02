@@ -151,12 +151,11 @@ Agent 思考:
 └─────────────┴──────────┴──────────┴──────────┘
 ```
 
-## users 表补充 role 字段
+## users 表 role 字段
 
-```sql
-ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user';
--- role: 'admin' / 'user'
-```
+> `role` 字段已直接包含在 `users` CREATE TABLE 定义中（见 `03-database-schema.md`），无需 ALTER TABLE。
+>
+> 值为 `'admin'` 或 `'user'`。
 
 ## Skill 加载优先级
 

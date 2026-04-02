@@ -13,10 +13,14 @@
 - [ ] `core/concurrency.py` — BatchExecutor
 - [ ] `core/skill_registry.py` — Skill 注册表
 - [ ] `db/engine.py` — SQLAlchemy async engine
-- [ ] `db/models.py` — 所有 ORM 模型
+- [ ] `db/models.py` — 所有 ORM 模型（含 users、refresh_tokens、user_model_configs、user_preferences、skill_registry、user_installed_skills 等认证/Skill 仓库相关表）
 - [ ] `alembic/` — 初始迁移脚本
 - [ ] `orchestrator/dag.py` — 从 V1 `task_dag.py` 迁移
+- [ ] `api/middleware.py` — 认证中间件（JWT 验证 + `get_current_user` 依赖注入）
+- [ ] 管理员种子用户初始化脚本（首次启动时自动创建 admin 账号）
 - [ ] 单元测试：DAG 拓扑排序、BatchExecutor 并发、DB CRUD
+
+> **关键决策**：认证中间件和 DB 表在 Phase 1 就绑定，确保 Phase 3 的所有 router 从第一天起就使用 `user_id` 过滤，避免后期补认证的改造成本。
 
 ### 验收标准
 ```python
@@ -76,6 +80,8 @@ assert len(result.data["clip_captions"]) == 20
 - [ ] `api/routers/chat.py` — WebSocket 聊天（集成 Agent + Orchestrator）
 - [ ] `api/routers/pipeline.py` — Pipeline 状态、恢复、日志
 - [ ] `api/routers/skills.py` — Skill 列表/详情
+- [ ] `api/routers/auth.py` — 注册/登录/刷新/登出（使用 Phase 1 的认证中间件）
+- [ ] `api/routers/admin.py` — 管理员 Skill 仓库管理
 - [ ] `agent/llm_client.py` — 多 Provider LLM 抽象
 - [ ] `agent/agent.py` — LangChain Agent（tools = Skills）
 - [ ] `orchestrator/planner.py` — LLM 意图规划
@@ -108,11 +114,14 @@ React 前端完整替代当前 HTML/JS。
 
 ### 交付物
 - [ ] Week 4-5: 脚手架 + 路由 + 首页 + Session 列表
+- [ ] Week 4-5: 登录页 (`/login`) + 注册页 (`/register`) + ProtectedRoute
 - [ ] Week 5-6: 聊天面板 + WebSocket 集成 + 消息渲染
 - [ ] Week 6: 媒体库 + 拖拽上传 + 缩略图
 - [ ] Week 6-7: Skill 执行卡片 + 进度条 + 详细日志面板
 - [ ] Week 7: Pipeline DAG 可视化（ReactFlow）
 - [ ] Week 7: 恢复控制（从任意节点重新执行）
+- [ ] Week 7: 设置页 (`/settings`) + 模型配置管理
+- [ ] Week 7: Skill 管理 (`/settings/skills`) + Skill 市场 (`/skills`)
 
 ### 验收标准
 - 浏览器打开 `/session/{id}` → WebSocket 连接 → 收到 snapshot → UI 完整恢复
@@ -121,7 +130,7 @@ React 前端完整替代当前 HTML/JS。
 
 ---
 
-## Phase 5: 集成 + 切换（第 7-8 周）
+## Phase 5: 集成 + 切换（第 8-10 周）
 
 ### 目标
 替换旧系统，端到端验证。
@@ -136,7 +145,7 @@ React 前端完整替代当前 HTML/JS。
 
 ---
 
-## Phase 6: 前瞻性 Hooks（持续）
+## Phase 6: 前瞻性 Hooks（第 10-11 周+，持续）
 
 | 功能 | 预留位置 | 需要时实现 |
 |------|----------|-----------|

@@ -41,13 +41,37 @@
 | GET | `/api/skills` | 可用 Skill 列表 |
 | GET | `/api/skills/{skill_id}` | Skill 详情（参数 schema、描述） |
 
-### 模型配置
+### 模型配置（用户作用域）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/models` | 已配置的模型 Provider 列表 |
-| POST | `/api/models/validate` | 验证模型 API Key |
+| GET | `/api/me/models` | 当前用户的模型 Provider 列表 |
+| POST | `/api/me/models` | 添加/更新模型配置 |
+| DELETE | `/api/me/models/{config_id}` | 删除模型配置 |
+| POST | `/api/me/models/validate` | 验证模型 API Key |
+| GET | `/api/me/preferences` | 获取用户偏好 |
+| PUT | `/api/me/preferences` | 更新用户偏好 |
 | GET | `/api/meta/tts` | TTS Provider UI schema |
+
+### 认证 API
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/auth/register` | 注册 `{ username, password }` |
+| POST | `/api/auth/login` | 登录 `{ username, password }` → `{ access_token, refresh_token }` |
+| POST | `/api/auth/refresh` | 刷新 `{ refresh_token }` → `{ access_token }` |
+| POST | `/api/auth/logout` | 登出（吊销 refresh_token） |
+| GET | `/api/auth/me` | 当前用户信息 |
+
+### 管理员 API
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/admin/skill-registry` | 上传新 Skill 到仓库 |
+| PUT | `/api/admin/skill-registry/{id}` | 更新 Skill（新版本） |
+| DELETE | `/api/admin/skill-registry/{id}` | 下架 Skill |
+| PATCH | `/api/admin/skill-registry/{id}/status` | 修改状态 (draft/published/deprecated) |
+| GET | `/api/admin/skill-registry` | 列出所有 Skill（含 draft） |
 
 ---
 
@@ -56,8 +80,10 @@
 ### 连接
 
 ```
-ws://host:port/ws/sessions/{session_id}/chat
+ws://host:port/ws/sessions/{session_id}/chat?token=xxx
 ```
+
+> WebSocket 不支持自定义 Header，通过 query param 传递 JWT token 进行认证。
 
 ### 客户端 → 服务端
 
@@ -76,6 +102,9 @@ ws://host:port/ws/sessions/{session_id}/chat
 // 设置语言
 { "type": "session.set_lang", "data": { "lang": "en" } }
 
+// 刷新 token（长连接期间 access_token 过期时）
+{ "type": "chat.refresh_token", "data": { "token": "new_access_token" } }
+
 // 心跳
 { "type": "ping" }
 ```
@@ -86,7 +115,7 @@ ws://host:port/ws/sessions/{session_id}/chat
 // 会话快照（连接后立即发送，刷新恢复）
 { "type": "session.snapshot", "data": {
     "session": { "session_id": "...", "status": "active", ... },
-    "pipeline": { "skills": [{ "skill_id": "load_media", "status": "completed" }, ...] },
+    "pipeline": { "skills": [{ "skill_id": "load_media", "status": "completed" }, ...], "edges": [{ "source": "load_media", "target": "split_shots" }, ...] },
     "history": [{ "role": "user", "content": "..." }, ...],
     "media": [{ "media_id": "...", "filename": "...", "thumb_url": "..." }, ...]
 }}
@@ -150,6 +179,11 @@ ws://host:port/ws/sessions/{session_id}/chat
         { "skill_id": "split_shots", "status": "completed" },
         { "skill_id": "understand_clips", "status": "running", "pct": 0.45 },
         { "skill_id": "filter_clips", "status": "pending" },
+        ...
+    ],
+    "edges": [
+        { "source": "load_media", "target": "split_shots" },
+        { "source": "split_shots", "target": "understand_clips" },
         ...
     ]
 }}

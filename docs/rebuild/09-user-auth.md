@@ -48,10 +48,26 @@ CREATE TABLE users (
     password_hash TEXT NOT NULL,
     display_name TEXT NOT NULL DEFAULT '',
     avatar_url   TEXT,
+    role         TEXT NOT NULL DEFAULT 'user',  -- 'admin' / 'user'
     status       TEXT NOT NULL DEFAULT 'active',  -- active / disabled
     created_at   REAL NOT NULL,
     updated_at   REAL NOT NULL
 );
+```
+
+### refresh_tokens（刷新令牌）
+
+```sql
+CREATE TABLE refresh_tokens (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      TEXT NOT NULL REFERENCES users(user_id),
+    token_hash   TEXT NOT NULL UNIQUE,        -- bcrypt hash of refresh token
+    expires_at   REAL NOT NULL,
+    revoked      BOOLEAN NOT NULL DEFAULT 0,
+    created_at   REAL NOT NULL
+);
+
+CREATE INDEX idx_refresh_tokens_user ON refresh_tokens(user_id);
 ```
 
 ### user_model_configs（用户模型配置）
@@ -89,14 +105,12 @@ CREATE TABLE user_preferences (
 );
 ```
 
-## 现有表加 user_id 外键
+## 现有表的 user_id 关联
+
+> **注意**：这是全新建表（greenfield），不存在 ALTER TABLE。`user_id` 已直接写入 `sessions` 的 CREATE TABLE 定义中，见 `03-database-schema.md`（唯一权威来源）。
 
 ```sql
--- sessions 表新增
-ALTER TABLE sessions ADD COLUMN user_id TEXT NOT NULL REFERENCES users(user_id);
-CREATE INDEX idx_sessions_user ON sessions(user_id);
-
--- media_files 已通过 session_id 间接关联 user_id，无需改
+-- media_files 已通过 session_id 间接关联 user_id，无需单独加 user_id
 
 -- 查询时永远带 user_id 过滤
 SELECT * FROM sessions WHERE user_id = ? AND session_id = ?;
@@ -213,6 +227,41 @@ async def get_llm_for_skill(user_id: str, skill_id: str, db) -> LLMClient:
         api_key=decrypt(config.api_key),
     )
 ```
+
+## 加密密钥管理
+
+API Key 在 DB 中使用 AES-256 加密存储，加密密钥从以下位置读取（优先级从高到低）：
+
+1. 环境变量 `OPENSTORYLINE_ENCRYPTION_KEY`
+2. `config.toml` 中的 `[security] encryption_key`
+
+首次启动时如未配置，系统自动生成随机密钥并写入 `config.toml`。生产环境建议通过环境变量注入。
+
+## 管理员种子用户
+
+首次启动时（`users` 表为空），系统自动创建管理员账号：
+
+```python
+# db/seed.py
+async def seed_admin_user(db: AsyncSession):
+    """首次启动时创建管理员种子用户。"""
+    count = await db.scalar(select(func.count()).select_from(User))
+    if count > 0:
+        return
+
+    admin = User(
+        user_id=str(uuid4()),
+        username="admin",
+        password_hash=bcrypt.hash(os.getenv("ADMIN_PASSWORD", "changeme")),
+        display_name="管理员",
+        role="admin",
+    )
+    db.add(admin)
+    await db.commit()
+    logger.info("已创建管理员种子用户 (username=admin)，请尽快修改默认密码")
+```
+
+默认密码通过环境变量 `ADMIN_PASSWORD` 设置，未设置则为 `changeme`（启动时打印警告）。
 
 ## 安全考虑
 

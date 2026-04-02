@@ -179,10 +179,30 @@ function useWebSocket(sessionId: string) {
 ```tsx
 // App.tsx
 <Routes>
-  <Route path="/" element={<HomePage />} />
-  <Route path="/session/:sessionId" element={<SessionPage />} />
-</Routes>
+  {/* 公开路由 */}
+  <Route path="/login" element={<LoginPage />} />
+  <Route path="/register" element={<RegisterPage />} />
 
+  {/* 需要登录的路由 */}
+  <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+  <Route path="/session/:sessionId" element={<ProtectedRoute><SessionPage /></ProtectedRoute>} />
+  <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+  <Route path="/settings/skills" element={<ProtectedRoute><MySkillsPage /></ProtectedRoute>} />
+  <Route path="/skills" element={<ProtectedRoute><SkillMarketPage /></ProtectedRoute>} />
+</Routes>
+```
+
+### ProtectedRoute 模式
+
+```tsx
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const token = useAuthStore(s => s.token);
+  if (!token) return <Navigate to="/login" />;
+  return children;
+}
+```
+
+```tsx
 // 创建会话后
 navigate(`/session/${newSessionId}`);
 
