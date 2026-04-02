@@ -1,0 +1,191 @@
+<mxfile host="app.diagrams.net" modified="2026-04-02" agent="Claude" version="24.0">
+  <diagram id="datamodel" name="核心数据模型">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="&lt;b&gt;核心数据模型 (node_schema.py)&lt;/b&gt;" style="text;html=1;fontSize=18;align=center;" vertex="1" parent="1">
+          <mxGeometry x="400" y="10" width="500" height="35" as="geometry"/>
+        </mxCell>
+
+        <!-- ====== 第一行: 主数据流转模型 ====== -->
+        <mxCell id="row1-label" value="&lt;b&gt;数据流转路径&lt;/b&gt;: Media &amp;rarr; Clip &amp;rarr; GroupClips &amp;rarr; GroupScript &amp;rarr; Voiceover &amp;rarr; BGM &amp;rarr; TimelineTracks &amp;rarr; MP4" style="text;html=1;fontSize=10;fontColor=#666;align=left;" vertex="1" parent="1">
+          <mxGeometry x="30" y="50" width="800" height="20" as="geometry"/>
+        </mxCell>
+
+        <!-- Media -->
+        <mxCell id="m-media-h" value="&lt;b&gt;Media (素材)&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#4A90D9;fontColor=#fff;strokeColor=none;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="30" y="80" width="180" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="m-media-b" value="&lt;font style=&quot;font-family:monospace;font-size:10px&quot;&gt;media_id: str&lt;br&gt;path: str&lt;br&gt;type: &quot;video&quot; | &quot;image&quot;&lt;br&gt;metadata: VideoMetadata&lt;br&gt;extra_info: dict&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EBF0FA;fontColor=#333;strokeColor=#4A90D9;align=left;spacingLeft=8;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="30" y="110" width="180" height="90" as="geometry"/>
+        </mxCell>
+
+        <!-- Clip -->
+        <mxCell id="m-clip-h" value="&lt;b&gt;Clip (片段)&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#5B7FD6;fontColor=#fff;strokeColor=none;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="250" y="80" width="180" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="m-clip-b" value="&lt;font style=&quot;font-family:monospace;font-size:10px&quot;&gt;clip_id: str&lt;br&gt;caption: str (VLM 描述)&lt;br&gt;path: str&lt;br&gt;source_ref: SourceRef&lt;br&gt;fps: float&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EBF0FA;fontColor=#333;strokeColor=#5B7FD6;align=left;spacingLeft=8;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="250" y="110" width="180" height="90" as="geometry"/>
+        </mxCell>
+
+        <!-- GroupClips -->
+        <mxCell id="m-group-h" value="&lt;b&gt;GroupClips (分组)&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#8E4CCD;fontColor=#fff;strokeColor=none;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="470" y="80" width="180" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="m-group-b" value="&lt;font style=&quot;font-family:monospace;font-size:10px&quot;&gt;group_id: str&lt;br&gt;summary: str (段落摘要)&lt;br&gt;clip_ids: List[str]&lt;br&gt;  (有序片段列表)&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F3E5F5;fontColor=#333;strokeColor=#8E4CCD;align=left;spacingLeft=8;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="470" y="110" width="180" height="90" as="geometry"/>
+        </mxCell>
+
+        <!-- GroupScript -->
+        <mxCell id="m-script-h" value="&lt;b&gt;GroupScript (文案)&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#9F3BCA;fontColor=#fff;strokeColor=none;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="690" y="80" width="180" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="m-script-b" value="&lt;font style=&quot;font-family:monospace;font-size:10px&quot;&gt;group_id: str&lt;br&gt;raw_text: str (完整文案)&lt;br&gt;subtitle_units:&lt;br&gt;  List[SubtitleUnit]&lt;br&gt;  (分句字幕列表)&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F3E5F5;fontColor=#333;strokeColor=#9F3BCA;align=left;spacingLeft=8;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="690" y="110" width="180" height="90" as="geometry"/>
+        </mxCell>
+
+        <!-- Voiceover -->
+        <mxCell id="m-voice-h" value="&lt;b&gt;Voiceover (配音)&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#B02AC7;fontColor=#fff;strokeColor=none;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="910" y="80" width="180" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="m-voice-b" value="&lt;font style=&quot;font-family:monospace;font-size:10px&quot;&gt;group_id: str&lt;br&gt;voiceover_id: str&lt;br&gt;path: str (WAV 文件)&lt;br&gt;duration: int (毫秒)&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F3E5F5;fontColor=#333;strokeColor=#B02AC7;align=left;spacingLeft=8;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="910" y="110" width="180" height="90" as="geometry"/>
+        </mxCell>
+
+        <!-- BGM -->
+        <mxCell id="m-bgm-h" value="&lt;b&gt;BGM (背景音乐)&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#C119C4;fontColor=#fff;strokeColor=none;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="80" width="180" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="m-bgm-b" value="&lt;font style=&quot;font-family:monospace;font-size:10px&quot;&gt;bgm_id: str&lt;br&gt;path: str&lt;br&gt;duration: int (毫秒)&lt;br&gt;bpm: float (每分钟拍数)&lt;br&gt;beats: List[int]&lt;br&gt;  (鼓点时间戳列表, ms)&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F3E5F5;fontColor=#333;strokeColor=#C119C4;align=left;spacingLeft=8;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="110" width="180" height="105" as="geometry"/>
+        </mxCell>
+
+        <!-- 第一行箭头 -->
+        <mxCell id="arr1" style="strokeColor=#95A5A6;strokeWidth=2;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="210" y="140" as="sourcePoint"/><mxPoint x="250" y="140" as="targetPoint"/></mxGeometry>
+        </mxCell>
+        <mxCell id="arr2" style="strokeColor=#95A5A6;strokeWidth=2;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="430" y="140" as="sourcePoint"/><mxPoint x="470" y="140" as="targetPoint"/></mxGeometry>
+        </mxCell>
+        <mxCell id="arr3" style="strokeColor=#95A5A6;strokeWidth=2;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="650" y="140" as="sourcePoint"/><mxPoint x="690" y="140" as="targetPoint"/></mxGeometry>
+        </mxCell>
+        <mxCell id="arr4" style="strokeColor=#95A5A6;strokeWidth=2;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="870" y="140" as="sourcePoint"/><mxPoint x="910" y="140" as="targetPoint"/></mxGeometry>
+        </mxCell>
+        <mxCell id="arr5" style="strokeColor=#95A5A6;strokeWidth=2;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="1090" y="140" as="sourcePoint"/><mxPoint x="1130" y="140" as="targetPoint"/></mxGeometry>
+        </mxCell>
+
+        <!-- ====== 第二行: 时间线相关模型 ====== -->
+        <mxCell id="row2-label" value="&lt;b&gt;时间线模型&lt;/b&gt;: 所有数据汇聚到 TimelineTracks，描述最终视频的四轨结构" style="text;html=1;fontSize=10;fontColor=#666;align=left;" vertex="1" parent="1">
+          <mxGeometry x="30" y="235" width="600" height="20" as="geometry"/>
+        </mxCell>
+
+        <!-- TimelineTracks -->
+        <mxCell id="m-tl-h" value="&lt;b&gt;TimelineTracks (时间线)&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#D208C1;fontColor=#fff;strokeColor=none;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="30" y="265" width="280" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="m-tl-b" value="&lt;font style=&quot;font-family:monospace;font-size:10px&quot;&gt;video: List[ClipTrack]       (视频轨)&lt;br&gt;subtitles: List[SubtitleTrack] (字幕轨)&lt;br&gt;voiceover: List[VoiceoverTrack] (配音轨)&lt;br&gt;bgm: List[BgmTrack]          (音乐轨)&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FCE4EC;fontColor=#333;strokeColor=#D208C1;align=left;spacingLeft=8;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="30" y="295" width="280" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- ClipTrack -->
+        <mxCell id="m-ct-h" value="&lt;b&gt;ClipTrack (视频轨项)&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E74C3C;fontColor=#fff;strokeColor=none;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="350" y="265" width="220" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="m-ct-b" value="&lt;font style=&quot;font-family:monospace;font-size:10px&quot;&gt;clip_id: str&lt;br&gt;source_window: TimeWindow&lt;br&gt;  (素材中的截取区间)&lt;br&gt;timeline_window: TimeWindow&lt;br&gt;  (在最终时间线上的位置)&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FDEDEC;fontColor=#333;strokeColor=#E74C3C;align=left;spacingLeft=8;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="350" y="295" width="220" height="90" as="geometry"/>
+        </mxCell>
+
+        <!-- SubtitleTrack -->
+        <mxCell id="m-st-h" value="&lt;b&gt;SubtitleTrack (字幕轨项)&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8833A;fontColor=#fff;strokeColor=none;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="610" y="265" width="220" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="m-st-b" value="&lt;font style=&quot;font-family:monospace;font-size:10px&quot;&gt;text: str (字幕文字)&lt;br&gt;timeline_window: TimeWindow&lt;br&gt;  (显示起止时间)&lt;br&gt;style: TextStyle (可选)&lt;br&gt;  (字体/颜色/描边等)&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFF3E0;fontColor=#333;strokeColor=#E8833A;align=left;spacingLeft=8;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="610" y="295" width="220" height="90" as="geometry"/>
+        </mxCell>
+
+        <!-- VoiceoverTrack -->
+        <mxCell id="m-vt-h" value="&lt;b&gt;VoiceoverTrack (配音轨项)&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#B02AC7;fontColor=#fff;strokeColor=none;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="870" y="265" width="220" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="m-vt-b" value="&lt;font style=&quot;font-family:monospace;font-size:10px&quot;&gt;media_id: str (配音文件 ID)&lt;br&gt;timeline_window: TimeWindow&lt;br&gt;  (播放起止时间)&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F3E5F5;fontColor=#333;strokeColor=#B02AC7;align=left;spacingLeft=8;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="870" y="295" width="220" height="65" as="geometry"/>
+        </mxCell>
+
+        <!-- BgmTrack -->
+        <mxCell id="m-bt-h" value="&lt;b&gt;BgmTrack (音乐轨项)&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#C119C4;fontColor=#fff;strokeColor=none;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="265" width="220" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="m-bt-b" value="&lt;font style=&quot;font-family:monospace;font-size:10px&quot;&gt;bgm_id: str&lt;br&gt;timeline_window: TimeWindow&lt;br&gt;mix: MixConfig (可选)&lt;br&gt;  (gain_db, ducking 配置)&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F3E5F5;fontColor=#333;strokeColor=#C119C4;align=left;spacingLeft=8;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="295" width="220" height="75" as="geometry"/>
+        </mxCell>
+
+        <!-- TimelineTracks 到子轨的箭头 -->
+        <mxCell id="tl-arr1" style="strokeColor=#D208C1;strokeWidth=1.5;dashed=1;exitX=1;exitY=0.3;entryX=0;entryY=0.5;" edge="1" parent="1" source="m-tl-b" target="m-ct-b"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="tl-arr2" style="strokeColor=#D208C1;strokeWidth=1.5;dashed=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="m-tl-b" target="m-st-b"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="tl-arr3" style="strokeColor=#D208C1;strokeWidth=1.5;dashed=1;exitX=1;exitY=0.7;entryX=0;entryY=0.5;" edge="1" parent="1" source="m-tl-b" target="m-vt-b"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- ====== 第三行: 基础模型 ====== -->
+        <mxCell id="row3-label" value="&lt;b&gt;基础模型&lt;/b&gt;: 被上层模型引用的通用数据结构" style="text;html=1;fontSize=10;fontColor=#666;align=left;" vertex="1" parent="1">
+          <mxGeometry x="30" y="415" width="500" height="20" as="geometry"/>
+        </mxCell>
+
+        <!-- SourceRef -->
+        <mxCell id="m-sr-h" value="&lt;b&gt;SourceRef (素材引用)&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#D4A843;fontColor=#fff;strokeColor=none;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="30" y="445" width="200" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="m-sr-b" value="&lt;font style=&quot;font-family:monospace;font-size:10px&quot;&gt;media_id: str (来源素材)&lt;br&gt;start: int (起始毫秒)&lt;br&gt;end: int (结束毫秒)&lt;br&gt;duration: int (时长毫秒)&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFF8E1;fontColor=#333;strokeColor=#D4A843;align=left;spacingLeft=8;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="30" y="475" width="200" height="75" as="geometry"/>
+        </mxCell>
+
+        <!-- TimeWindow -->
+        <mxCell id="m-tw-h" value="&lt;b&gt;TimeWindow (时间窗口)&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#50B86C;fontColor=#fff;strokeColor=none;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="270" y="445" width="200" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="m-tw-b" value="&lt;font style=&quot;font-family:monospace;font-size:10px&quot;&gt;start: int (起始毫秒)&lt;br&gt;end: int (结束毫秒)&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#999&quot;&gt;时间线上的一个区间&lt;br&gt;被 ClipTrack / SubtitleTrack 等引用&lt;/font&gt;&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8F5E9;fontColor=#333;strokeColor=#50B86C;align=left;spacingLeft=8;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="270" y="475" width="200" height="95" as="geometry"/>
+        </mxCell>
+
+        <!-- VideoMetadata -->
+        <mxCell id="m-vm-h" value="&lt;b&gt;VideoMetadata (视频元数据)&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#95A5A6;fontColor=#fff;strokeColor=none;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="510" y="445" width="220" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="m-vm-b" value="&lt;font style=&quot;font-family:monospace;font-size:10px&quot;&gt;fps: float (帧率)&lt;br&gt;width: int (宽度)&lt;br&gt;height: int (高度)&lt;br&gt;duration: float (秒)&lt;br&gt;audio_sample_rate: int&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F5F5F5;fontColor=#333;strokeColor=#95A5A6;align=left;spacingLeft=8;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="510" y="475" width="220" height="90" as="geometry"/>
+        </mxCell>
+
+        <!-- SubtitleUnit -->
+        <mxCell id="m-su-h" value="&lt;b&gt;SubtitleUnit (字幕单元)&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E8833A;fontColor=#fff;strokeColor=none;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="770" y="445" width="200" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="m-su-b" value="&lt;font style=&quot;font-family:monospace;font-size:10px&quot;&gt;unit_id: str&lt;br&gt;index_in_group: int&lt;br&gt;text: str (单句文字)&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFF3E0;fontColor=#333;strokeColor=#E8833A;align=left;spacingLeft=8;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="770" y="475" width="200" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- NodeMeta -->
+        <mxCell id="m-nm-h" value="&lt;b&gt;NodeMeta (节点元数据)&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#7B68EE;fontColor=#fff;strokeColor=none;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="445" width="220" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="m-nm-b" value="&lt;font style=&quot;font-family:monospace;font-size:10px&quot;&gt;name: str (工具名称)&lt;br&gt;node_id: str (唯一标识)&lt;br&gt;node_kind: str (类别)&lt;br&gt;require_prior_kind: List&lt;br&gt;  (前置依赖类别列表)&lt;br&gt;next_available_node: List&lt;br&gt;  (可跳转的下游节点)&lt;br&gt;priority: int (优先级)&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EDE7F6;fontColor=#333;strokeColor=#7B68EE;align=left;spacingLeft=8;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="475" width="220" height="130" as="geometry"/>
+        </mxCell>
+
+        <!-- 引用关系虚线 -->
+        <mxCell id="ref1" value="&lt;font style=&quot;font-size:8px&quot; color=&quot;#999&quot;&gt;引用&lt;/font&gt;" style="strokeColor=#CCC;strokeWidth=1;dashed=1;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" edge="1" parent="1" source="m-sr-h" target="m-clip-b">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ref2" value="&lt;font style=&quot;font-size:8px&quot; color=&quot;#999&quot;&gt;引用&lt;/font&gt;" style="strokeColor=#CCC;strokeWidth=1;dashed=1;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" edge="1" parent="1" source="m-tw-h" target="m-ct-b">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ref3" value="&lt;font style=&quot;font-size:8px&quot; color=&quot;#999&quot;&gt;引用&lt;/font&gt;" style="strokeColor=#CCC;strokeWidth=1;dashed=1;exitX=0.5;exitY=0;entryX=0.3;entryY=1;" edge="1" parent="1" source="m-vm-h" target="m-media-b">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

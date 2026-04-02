@@ -1,0 +1,206 @@
+<mxfile host="app.diagrams.net" modified="2026-04-02" agent="Claude" version="24.0">
+  <diagram id="pipeline" name="视频处理流水线">
+    <mxGraphModel dx="1400" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="&lt;b&gt;视频处理流水线&lt;/b&gt;" style="text;html=1;fontSize=20;align=center;" vertex="1" parent="1">
+          <mxGeometry x="500" y="10" width="400" height="35" as="geometry"/>
+        </mxCell>
+
+        <!-- 主流水线背景 -->
+        <mxCell id="main-bg" value="" style="rounded=1;fillColor=#F0F4FF;strokeColor=#B0C4DE;strokeWidth=1;dashed=1;arcSize=5;" vertex="1" parent="1">
+          <mxGeometry x="20" y="55" width="1560" height="210" as="geometry"/>
+        </mxCell>
+        <mxCell id="main-label" value="&lt;b&gt;主流水线 (顺序执行)&lt;/b&gt;" style="text;html=1;fontSize=12;fontColor=#4A6FA5;align=left;" vertex="1" parent="1">
+          <mxGeometry x="30" y="58" width="250" height="20" as="geometry"/>
+        </mxCell>
+
+        <!-- 步骤1: 加载素材 -->
+        <mxCell id="s1" value="&lt;b&gt;1. 加载素材&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4A90D9;fontColor=#fff;strokeColor=none;arcSize=15;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="30" y="85" width="130" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="s1d" value="导入视频/图片&lt;br&gt;读取元数据 (帧率、分辨率、时长)&lt;br&gt;生成 media_id" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EBF0FA;fontColor=#333;strokeColor=#4A90D9;arcSize=10;fontSize=9;align=left;spacingLeft=5;" vertex="1" parent="1">
+          <mxGeometry x="30" y="125" width="130" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="s1o" value="&lt;i&gt;List[Media]&lt;/i&gt;" style="text;html=1;fontSize=9;fontColor=#4A90D9;align=center;" vertex="1" parent="1">
+          <mxGeometry x="30" y="183" width="130" height="15" as="geometry"/>
+        </mxCell>
+
+        <!-- 步骤2: 镜头分割 -->
+        <mxCell id="s2" value="&lt;b&gt;2. 镜头分割&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5B7FD6;fontColor=#fff;strokeColor=none;arcSize=15;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="185" y="85" width="130" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="s2d" value="TransNetV2 场景检测&lt;br&gt;FFmpeg 无损切割&lt;br&gt;最小/最大镜头时长约束" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EBF0FA;fontColor=#333;strokeColor=#5B7FD6;arcSize=10;fontSize=9;align=left;spacingLeft=5;" vertex="1" parent="1">
+          <mxGeometry x="185" y="125" width="130" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="s2o" value="&lt;i&gt;List[Clip]&lt;/i&gt;" style="text;html=1;fontSize=9;fontColor=#5B7FD6;align=center;" vertex="1" parent="1">
+          <mxGeometry x="185" y="183" width="130" height="15" as="geometry"/>
+        </mxCell>
+
+        <!-- 步骤3: 画面理解 -->
+        <mxCell id="s3" value="&lt;b&gt;3. 画面理解&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#6C6ED3;fontColor=#fff;strokeColor=none;arcSize=15;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="340" y="85" width="130" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="s3d" value="VLM 逐段抽帧理解&lt;br&gt;采样率 2fps&lt;br&gt;生成画面描述文字" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EBF0FA;fontColor=#333;strokeColor=#6C6ED3;arcSize=10;fontSize=9;align=left;spacingLeft=5;" vertex="1" parent="1">
+          <mxGeometry x="340" y="125" width="130" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="s3o" value="&lt;i&gt;Clip + 描述&lt;/i&gt;" style="text;html=1;fontSize=9;fontColor=#6C6ED3;align=center;" vertex="1" parent="1">
+          <mxGeometry x="340" y="183" width="130" height="15" as="geometry"/>
+        </mxCell>
+
+        <!-- 步骤4: 片段筛选 -->
+        <mxCell id="s4" value="&lt;b&gt;4. 片段筛选&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#7D5DD0;fontColor=#fff;strokeColor=none;arcSize=15;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="495" y="85" width="130" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="s4d" value="LLM 根据用户需求&lt;br&gt;筛选相关片段&lt;br&gt;保持原始顺序" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EBF0FA;fontColor=#333;strokeColor=#7D5DD0;arcSize=10;fontSize=9;align=left;spacingLeft=5;" vertex="1" parent="1">
+          <mxGeometry x="495" y="125" width="130" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="s4o" value="&lt;i&gt;选中的 clip_ids&lt;/i&gt;" style="text;html=1;fontSize=9;fontColor=#7D5DD0;align=center;" vertex="1" parent="1">
+          <mxGeometry x="495" y="183" width="130" height="15" as="geometry"/>
+        </mxCell>
+
+        <!-- 步骤5: 片段分组 -->
+        <mxCell id="s5" value="&lt;b&gt;5. 片段分组&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#8E4CCD;fontColor=#fff;strokeColor=none;arcSize=15;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="650" y="85" width="130" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="s5d" value="LLM 按叙事逻辑分组&lt;br&gt;形成段落结构&lt;br&gt;失败时扩展 Token 重试" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EBF0FA;fontColor=#333;strokeColor=#8E4CCD;arcSize=10;fontSize=9;align=left;spacingLeft=5;" vertex="1" parent="1">
+          <mxGeometry x="650" y="125" width="130" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="s5o" value="&lt;i&gt;List[GroupClips]&lt;/i&gt;" style="text;html=1;fontSize=9;fontColor=#8E4CCD;align=center;" vertex="1" parent="1">
+          <mxGeometry x="650" y="183" width="130" height="15" as="geometry"/>
+        </mxCell>
+
+        <!-- 步骤6: 文案生成 -->
+        <mxCell id="s6" value="&lt;b&gt;6. 文案生成&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#9F3BCA;fontColor=#fff;strokeColor=none;arcSize=15;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="805" y="85" width="130" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="s6d" value="LLM 为每组生成字幕&lt;br&gt;支持自定义文案覆盖&lt;br&gt;按字/词分割为 SubtitleUnit" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EBF0FA;fontColor=#333;strokeColor=#9F3BCA;arcSize=10;fontSize=9;align=left;spacingLeft=5;" vertex="1" parent="1">
+          <mxGeometry x="805" y="125" width="130" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="s6o" value="&lt;i&gt;List[GroupScript]&lt;/i&gt;" style="text;html=1;fontSize=9;fontColor=#9F3BCA;align=center;" vertex="1" parent="1">
+          <mxGeometry x="805" y="183" width="130" height="15" as="geometry"/>
+        </mxCell>
+
+        <!-- 步骤7: 语音合成 -->
+        <mxCell id="s7" value="&lt;b&gt;7. 语音合成&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B02AC7;fontColor=#fff;strokeColor=none;arcSize=15;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="960" y="85" width="130" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="s7d" value="TTS 服务合成语音&lt;br&gt;MiniMax / 字节跳动 / 302&lt;br&gt;LLM 推断音色和语速" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EBF0FA;fontColor=#333;strokeColor=#B02AC7;arcSize=10;fontSize=9;align=left;spacingLeft=5;" vertex="1" parent="1">
+          <mxGeometry x="960" y="125" width="130" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="s7o" value="&lt;i&gt;List[Voiceover]&lt;/i&gt;" style="text;html=1;fontSize=9;fontColor=#B02AC7;align=center;" vertex="1" parent="1">
+          <mxGeometry x="960" y="183" width="130" height="15" as="geometry"/>
+        </mxCell>
+
+        <!-- 步骤8: 音乐选择 -->
+        <mxCell id="s8" value="&lt;b&gt;8. 音乐选择&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C119C4;fontColor=#fff;strokeColor=none;arcSize=15;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1115" y="85" width="130" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="s8d" value="FAISS 语义搜索候选&lt;br&gt;LLM 从候选中选择&lt;br&gt;librosa 节拍/BPM 分析" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EBF0FA;fontColor=#333;strokeColor=#C119C4;arcSize=10;fontSize=9;align=left;spacingLeft=5;" vertex="1" parent="1">
+          <mxGeometry x="1115" y="125" width="130" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="s8o" value="&lt;i&gt;BGM + beats[]&lt;/i&gt;" style="text;html=1;fontSize=9;fontColor=#C119C4;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1115" y="183" width="130" height="15" as="geometry"/>
+        </mxCell>
+
+        <!-- 步骤9: 时间线编排 -->
+        <mxCell id="s9" value="&lt;b&gt;9. 时间线编排&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D208C1;fontColor=#fff;strokeColor=none;arcSize=15;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1270" y="85" width="130" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="s9d" value="同步四轨数据&lt;br&gt;节拍对齐 + 间距计算&lt;br&gt;BGM 循环 / 字幕时序" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EBF0FA;fontColor=#333;strokeColor=#D208C1;arcSize=10;fontSize=9;align=left;spacingLeft=5;" vertex="1" parent="1">
+          <mxGeometry x="1270" y="125" width="130" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="s9o" value="&lt;i&gt;TimelineTracks&lt;/i&gt;" style="text;html=1;fontSize=9;fontColor=#D208C1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1270" y="183" width="130" height="15" as="geometry"/>
+        </mxCell>
+
+        <!-- 步骤10: 视频渲染 -->
+        <mxCell id="s10" value="&lt;b&gt;10. 视频渲染&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E30050;fontColor=#fff;strokeColor=none;arcSize=15;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1425" y="85" width="130" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="s10d" value="MoviePy 合成视频&lt;br&gt;FFmpeg 编码 (libx264)&lt;br&gt;混音: 原声+配音+BGM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EBF0FA;fontColor=#333;strokeColor=#E30050;arcSize=10;fontSize=9;align=left;spacingLeft=5;" vertex="1" parent="1">
+          <mxGeometry x="1425" y="125" width="130" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="s10o" value="&lt;b&gt;&lt;font color=&quot;#E30050&quot;&gt;最终 MP4&lt;/font&gt;&lt;/b&gt;" style="text;html=1;fontSize=10;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1425" y="183" width="130" height="18" as="geometry"/>
+        </mxCell>
+
+        <!-- 步骤间箭头 -->
+        <mxCell id="pa1" style="strokeColor=#95A5A6;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s1" target="s2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="pa2" style="strokeColor=#95A5A6;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s2" target="s3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="pa3" style="strokeColor=#95A5A6;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s3" target="s4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="pa4" style="strokeColor=#95A5A6;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s4" target="s5"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="pa5" style="strokeColor=#95A5A6;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s5" target="s6"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="pa6" style="strokeColor=#95A5A6;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s6" target="s7"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="pa7" style="strokeColor=#95A5A6;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s7" target="s8"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="pa8" style="strokeColor=#95A5A6;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s8" target="s9"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="pa9" style="strokeColor=#95A5A6;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s9" target="s10"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- ====== 辅助 / 并行节点 ====== -->
+        <mxCell id="alt-bg" value="" style="rounded=1;fillColor=#FFF8F0;strokeColor=#E8833A;strokeWidth=1;dashed=1;arcSize=5;" vertex="1" parent="1">
+          <mxGeometry x="20" y="290" width="1560" height="140" as="geometry"/>
+        </mxCell>
+        <mxCell id="alt-label" value="&lt;b&gt;辅助 / 并行节点&lt;/b&gt;" style="text;html=1;fontSize=12;fontColor=#E8833A;align=left;" vertex="1" parent="1">
+          <mxGeometry x="30" y="295" width="300" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="alt1" value="&lt;b&gt;在线搜索素材&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;SearchMedia&lt;br&gt;通过 Pexels API 搜索下载图片/视频&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8833A;fontColor=#fff;strokeColor=none;arcSize=15;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="325" width="210" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="alt2" value="&lt;b&gt;语音识别&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;LocalASR (FunASR)&lt;br&gt;音频转文字，带时间戳&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8833A;fontColor=#fff;strokeColor=none;arcSize=15;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="270" y="325" width="210" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="alt3" value="&lt;b&gt;口播粗剪&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;SpeechRoughCut&lt;br&gt;自动去除语气词、重复句、停顿&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8833A;fontColor=#fff;strokeColor=none;arcSize=15;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="500" y="325" width="230" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="alt4" value="&lt;b&gt;文案模板推荐&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;ScriptTemplate&lt;br&gt;推荐文案风格 (种草/Vlog/测评等)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D4A843;fontColor=#fff;strokeColor=none;arcSize=15;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="750" y="325" width="230" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="alt5" value="&lt;b&gt;字体推荐&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;RecommendText&lt;br&gt;字体、字号、颜色、描边推荐&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D4A843;fontColor=#fff;strokeColor=none;arcSize=15;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="325" width="200" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="alt6" value="&lt;b&gt;转场推荐&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;RecommendTransition&lt;br&gt;推荐转场效果和风格匹配&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D4A843;fontColor=#fff;strokeColor=none;arcSize=15;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1220" y="325" width="220" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="alt-note" value="&lt;font style=&quot;font-size:9px&quot; color=&quot;#999&quot;&gt;这些节点可根据用户需求独立调用，也可与主流水线并行执行&lt;/font&gt;" style="text;html=1;align=left;" vertex="1" parent="1">
+          <mxGeometry x="40" y="395" width="500" height="20" as="geometry"/>
+        </mxCell>
+
+        <!-- ====== 执行模式 ====== -->
+        <mxCell id="mode-bg" value="" style="rounded=1;fillColor=#F5F5F5;strokeColor=#CCCCCC;strokeWidth=1;dashed=1;arcSize=5;" vertex="1" parent="1">
+          <mxGeometry x="20" y="455" width="1560" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="mode-label" value="&lt;b&gt;节点执行模式&lt;/b&gt;" style="text;html=1;fontSize=12;fontColor=#555;align=left;" vertex="1" parent="1">
+          <mxGeometry x="30" y="460" width="250" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="mode-auto" value="&lt;b&gt;mode = &quot;auto&quot;&lt;/b&gt;&lt;br&gt;自动执行模式。缺失的前置依赖节点会被递归自动执行。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#50B86C;fontColor=#fff;strokeColor=none;arcSize=12;fontSize=10;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="490" width="470" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="mode-default" value="&lt;b&gt;mode = &quot;default&quot;&lt;/b&gt;&lt;br&gt;最小依赖模式。仅使用 default_require_prior_kind 中定义的前置条件。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D4A843;fontColor=#fff;strokeColor=none;arcSize=12;fontSize=10;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="530" y="490" width="470" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="mode-skip" value="&lt;b&gt;mode = &quot;skip&quot;&lt;/b&gt;&lt;br&gt;跳过执行模式。直接返回 ArtifactStore 中的缓存结果。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#95A5A6;fontColor=#fff;strokeColor=none;arcSize=12;fontSize=10;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="490" width="470" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- 依赖关系 -->
+        <mxCell id="dep-bg" value="" style="rounded=1;fillColor=#FAFAFA;strokeColor=#DDD;strokeWidth=1;arcSize=5;" vertex="1" parent="1">
+          <mxGeometry x="20" y="580" width="1560" height="140" as="geometry"/>
+        </mxCell>
+        <mxCell id="dep-label" value="&lt;b&gt;节点依赖关系 (require_prior_kind)&lt;/b&gt;" style="text;html=1;fontSize=12;fontColor=#555;align=left;" vertex="1" parent="1">
+          <mxGeometry x="30" y="585" width="400" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="dep-text" value="&lt;font style=&quot;font-size:10px;font-family:monospace;&quot;&gt;镜头分割      &amp;larr; [加载素材]&lt;br&gt;画面理解      &amp;larr; [加载素材, 镜头分割]&lt;br&gt;片段筛选      &amp;larr; [画面理解]&lt;br&gt;片段分组      &amp;larr; [片段筛选]&lt;br&gt;文案生成      &amp;larr; [片段分组]&lt;/font&gt;" style="text;html=1;align=left;fontColor=#555;" vertex="1" parent="1">
+          <mxGeometry x="40" y="615" width="400" height="95" as="geometry"/>
+        </mxCell>
+        <mxCell id="dep-text2" value="&lt;font style=&quot;font-size:10px;font-family:monospace;&quot;&gt;语音合成       &amp;larr; [文案生成]&lt;br&gt;音乐选择       &amp;larr; [加载素材]&lt;br&gt;时间线编排     &amp;larr; [加载素材, 镜头分割, 片段分组, 文案生成]&lt;br&gt;视频渲染       &amp;larr; [时间线编排]&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#999&quot;&gt;当 mode=&quot;auto&quot; 时，缺失的依赖会被自动递归执行补齐&lt;/font&gt;&lt;/font&gt;" style="text;html=1;align=left;fontColor=#555;" vertex="1" parent="1">
+          <mxGeometry x="500" y="615" width="700" height="95" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
