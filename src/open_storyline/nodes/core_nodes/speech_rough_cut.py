@@ -13,7 +13,24 @@ from open_storyline.utils.ffmpeg_utils import (
     VideoSegment,
 )
 from open_storyline.utils.register import NODE_REGISTRY
-from open_storyline.mcp.hooks.chat_middleware import emit_tool_log
+
+
+async def _emit_log(mcp_ctx, level: str, message: str, detail: str = ""):
+    """
+    Send a structured log entry through MCP report_progress channel.
+    Uses a JSON-encoded message with a __log__ marker so the frontend
+    can distinguish log entries from regular progress updates.
+    """
+    try:
+        log_payload = json.dumps({
+            "__log__": True,
+            "level": level,
+            "message": message,
+            "detail": detail[:6000] if detail else "",
+        }, ensure_ascii=False)
+        await mcp_ctx.report_progress(0, 0, log_payload)
+    except Exception:
+        pass
 
 CLIP_ID_NUMBER_WIDTH = 4
 MILLISECONDS_PER_SECOND = 1000.0
@@ -103,8 +120,8 @@ class SpeechRoughCutNode(BaseNode):
             screen_system = "你是一个视频语音内容审核助手。快速判断哪些句子需要清洗处理。"
 
             # Log: show all sentences to user
-            emit_tool_log("info", f"📝 全部 {total_sentences} 句 ASR 识别结果", sentences_block)
-            emit_tool_log("info", f"🤖 发送给模型进行预筛选",
+            await _emit_log(node_state.mcp_ctx, "info", f"📝 全部 {total_sentences} 句 ASR 识别结果", sentences_block)
+            await _emit_log(node_state.mcp_ctx, "info", f"🤖 发送给模型进行预筛选",
                           f"【System Prompt】\n{screen_system}\n\n【User Prompt】\n{screen_prompt}")
             try:
                 raw_screen = await llm.complete(
@@ -121,13 +138,13 @@ class SpeechRoughCutNode(BaseNode):
 
                 # Log: show model response
                 flagged_texts = [f"  [{i}] \"{asr_sentence_info[i].get('text', '')}\"" for i in sorted(flagged_indices) if i < total_sentences]
-                emit_tool_log("info",
+                await _emit_log(node_state.mcp_ctx, "info",
                     f"✅ 预筛选完成: {len(flagged_indices)}/{total_sentences} 句需处理",
                     f"【模型原始输出】\n{raw_screen}\n\n【需处理的句子】\n" + "\n".join(flagged_texts))
             except Exception as e:
                 node_state.node_summary.add_warning(f"Batch screening failed: {e}, processing all sentences")
                 flagged_indices = set(range(total_sentences))
-                emit_tool_log("warn", f"⚠️ 预筛选失败，降级为全量处理", str(e))
+                await _emit_log(node_state.mcp_ctx, "warn", f"⚠️ 预筛选失败，降级为全量处理", str(e))
 
             try:
                 await node_state.mcp_ctx.report_progress(1, 3, f"预筛选完成: {len(flagged_indices)}/{total_sentences} 句需处理")
@@ -153,7 +170,7 @@ class SpeechRoughCutNode(BaseNode):
                             nxt_ctx=asr_sentence_info[i+1]["text"] if i < total_sentences - 1 else '',
                         )
                         # Log: show input to model
-                        emit_tool_log("info",
+                        await _emit_log(node_state.mcp_ctx, "info",
                             f"🔍 精细处理 句 {i}: \"{sent_text}\"",
                             f"【发送给模型】\nSystem: {system_prompt[:200]}...\n\nUser:\n{user_prompt}")
 
@@ -171,13 +188,13 @@ class SpeechRoughCutNode(BaseNode):
                             res = parsed_json.get('res', [])
                             rough_cut_json += res
                             action = "✂️ 删除" if not res else f"✅ 保留 ({len(res)} 段)"
-                            emit_tool_log("info",
+                            await _emit_log(node_state.mcp_ctx, "info",
                                 f"句 {i} → {action}",
                                 f"【模型原始输出】\n{raw}\n\n【解析结果】\n原因: {parsed_json.get('reason', '无')}\n结果: {json.dumps(res, ensure_ascii=False)}")
                         except Exception as e:
                             node_state.node_summary.add_warning(f"LLM rough cut failed for sentence {i}: {e}")
                             rough_cut_json.append({"text": sentence.get("text", ""), "start": sentence.get("start", 0), "end": sentence.get("end", 0)})
-                            emit_tool_log("error", f"❌ 句 {i} LLM 调用失败，保留原句", str(e))
+                            await _emit_log(node_state.mcp_ctx, "error", f"❌ 句 {i} LLM 调用失败，保留原句", str(e))
                         processed += 1
                         try:
                             await node_state.mcp_ctx.report_progress(

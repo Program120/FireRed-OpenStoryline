@@ -1,0 +1,310 @@
+/* ═══════════════════════════════════════════════════════
+   Tool Log Panel — IDE-inspired execution trace viewer
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Trigger Button ── */
+.tool-log-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 6px 0 2px 0;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: "SF Mono", "Menlo", "Monaco", "Consolas", "Liberation Mono", monospace;
+  color: #4d7cff;
+  background: transparent;
+  border: 1px solid #4d7cff33;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: 0.3px;
+}
+.tool-log-btn:hover {
+  background: #4d7cff0d;
+  border-color: #4d7cff66;
+}
+.tool-log-btn.active {
+  background: #4d7cff12;
+  border-color: #4d7cff;
+  color: #3366ff;
+}
+.tool-log-btn .log-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 700;
+  background: #4d7cff18;
+  color: #4d7cff;
+  border-radius: 9px;
+}
+.tool-log-btn.active .log-count {
+  background: #4d7cff;
+  color: #fff;
+}
+
+/* ── Panel Container ── */
+.tool-log-panel {
+  display: none;
+  max-height: 420px;
+  margin: 4px 0 12px 0;
+  border: 1px solid #e2e6ed;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fafbfc;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.02);
+}
+.tool-log-panel.open {
+  display: block;
+}
+
+/* ── Panel Header ── */
+.tool-log-panel-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: #f0f2f5;
+  border-bottom: 1px solid #e2e6ed;
+  font-size: 11px;
+  font-family: "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
+  color: #666;
+  user-select: none;
+}
+.tool-log-panel-hd .hd-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tool-log-panel-hd .hd-icon {
+  width: 14px;
+  height: 14px;
+  background: #4d7cff;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+}
+.tool-log-panel-hd .hd-title {
+  font-weight: 600;
+  color: #333;
+  letter-spacing: 0.3px;
+}
+.tool-log-panel-hd .hd-stats {
+  font-size: 10px;
+  color: #999;
+}
+
+/* ── Scrollable Body ── */
+.tool-log-panel-body {
+  max-height: 360px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain; /* prevent parent scroll */
+}
+.tool-log-panel-body::-webkit-scrollbar {
+  width: 6px;
+}
+.tool-log-panel-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.tool-log-panel-body::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 3px;
+}
+.tool-log-panel-body::-webkit-scrollbar-thumb:hover {
+  background: #aaa;
+}
+
+/* ── Log Entry ── */
+.tlog-entry {
+  border-bottom: 1px solid #f0f2f5;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.tlog-entry:last-child {
+  border-bottom: none;
+}
+
+/* Entry Header (clickable to expand detail) */
+.tlog-entry-hd {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.tlog-entry-hd:hover {
+  background: #f5f7fa;
+}
+
+/* Level indicator */
+.tlog-level {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  font-size: 10px;
+}
+.tlog-level-info {
+  background: #e8f0fe;
+  color: #4d7cff;
+}
+.tlog-level-warn {
+  background: #fff3e0;
+  color: #f59e0b;
+}
+.tlog-level-error {
+  background: #fee;
+  color: #ef4444;
+}
+
+/* Sequence number */
+.tlog-seq {
+  flex-shrink: 0;
+  font-family: "SF Mono", "Menlo", monospace;
+  font-size: 10px;
+  color: #bbb;
+  min-width: 20px;
+  text-align: right;
+  margin-top: 2px;
+}
+
+/* Message text */
+.tlog-msg {
+  flex: 1;
+  color: #333;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+/* Expand arrow */
+.tlog-arrow {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: #bbb;
+  transition: transform 0.15s;
+  margin-top: 3px;
+}
+.tlog-entry.expanded .tlog-arrow {
+  transform: rotate(90deg);
+  color: #4d7cff;
+}
+
+/* Detail block (collapsible) */
+.tlog-detail {
+  display: none;
+  padding: 0 14px 10px 46px;
+}
+.tlog-entry.expanded .tlog-detail {
+  display: block;
+}
+.tlog-detail-pre {
+  margin: 0;
+  padding: 10px 12px;
+  font-family: "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #4a5568;
+  background: #f0f2f5;
+  border-radius: 6px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid #e8ebef;
+}
+.tlog-detail-pre::-webkit-scrollbar {
+  width: 5px;
+}
+.tlog-detail-pre::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 3px;
+}
+
+/* ── Section headers inside logs ── */
+.tlog-detail-pre .section-label {
+  color: #4d7cff;
+  font-weight: 700;
+}
+
+/* ── Empty state ── */
+.tlog-empty {
+  padding: 24px;
+  text-align: center;
+  font-size: 12px;
+  color: #aaa;
+}
+
+/* ══════════ Dark Mode ══════════ */
+[data-theme="dark"] .tool-log-btn,
+.dark .tool-log-btn {
+  color: #6b9fff;
+  border-color: #6b9fff33;
+}
+[data-theme="dark"] .tool-log-btn:hover,
+.dark .tool-log-btn:hover {
+  background: #6b9fff0d;
+  border-color: #6b9fff55;
+}
+[data-theme="dark"] .tool-log-btn.active,
+.dark .tool-log-btn.active {
+  background: #6b9fff15;
+  border-color: #6b9fff;
+}
+[data-theme="dark"] .tool-log-btn .log-count,
+.dark .tool-log-btn .log-count {
+  background: #6b9fff22;
+  color: #6b9fff;
+}
+[data-theme="dark"] .tool-log-panel,
+.dark .tool-log-panel {
+  background: #1a1d23;
+  border-color: #2a2d35;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+[data-theme="dark"] .tool-log-panel-hd,
+.dark .tool-log-panel-hd {
+  background: #1e2128;
+  border-bottom-color: #2a2d35;
+  color: #888;
+}
+[data-theme="dark"] .tool-log-panel-hd .hd-title,
+.dark .tool-log-panel-hd .hd-title {
+  color: #ddd;
+}
+[data-theme="dark"] .tlog-entry,
+.dark .tlog-entry {
+  border-bottom-color: #22252b;
+}
+[data-theme="dark"] .tlog-entry-hd:hover,
+.dark .tlog-entry-hd:hover {
+  background: #1e2128;
+}
+[data-theme="dark"] .tlog-msg,
+.dark .tlog-msg {
+  color: #ddd;
+}
+[data-theme="dark"] .tlog-detail-pre,
+.dark .tlog-detail-pre {
+  background: #14161b;
+  border-color: #2a2d35;
+  color: #a0aec0;
+}
+[data-theme="dark"] .tlog-level-info,
+.dark .tlog-level-info {
+  background: #1e2940;
+  color: #6b9fff;
+}

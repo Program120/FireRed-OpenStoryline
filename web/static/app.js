@@ -4009,86 +4009,32 @@ class App {
     }
 
     if (type === "tool.progress") {
-      this.ui.upsertToolCard(data.tool_call_id, {
-        server: data.server,
-        name: data.name,
-        state: "running",
-        progress: typeof data.progress === "number" ? data.progress : 0,
-        message: data.message || "",
-        __progress_mode: "real",
-      });
+      // Check if this progress message carries a __log__ payload
+      const msg = data.message || "";
+      let logParsed = null;
+      if (msg.startsWith("{") && msg.includes("__log__")) {
+        try { logParsed = JSON.parse(msg); } catch {}
+      }
+
+      if (logParsed && logParsed.__log__) {
+        // It's a log entry piggybacked on progress channel
+        this._appendToolLog(data.tool_call_id, logParsed);
+      } else {
+        // Regular progress update
+        this.ui.upsertToolCard(data.tool_call_id, {
+          server: data.server,
+          name: data.name,
+          state: "running",
+          progress: typeof data.progress === "number" ? data.progress : 0,
+          message: msg,
+          __progress_mode: "real",
+        });
+      }
       return;
     }
 
     if (type === "tool.log") {
-      const logDom = this.ui.toolDomById.get(data.tool_call_id);
-      if (!logDom) return;
-
-      // Create inline log panel container if not exists
-      if (!logDom._logPanel) {
-        const row = document.createElement("div");
-        row.className = "tool-log-row";
-
-        // "详细日志" button
-        const btn = document.createElement("button");
-        btn.className = "tool-log-toggle-btn";
-        btn.textContent = "详细日志";
-        btn.addEventListener("click", (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const panel = logDom._logPanelBody;
-          if (panel.style.display === "none") {
-            panel.style.display = "block";
-            btn.classList.add("active");
-          } else {
-            panel.style.display = "none";
-            btn.classList.remove("active");
-          }
-        });
-
-        // Scrollable log body
-        const panel = document.createElement("div");
-        panel.className = "tool-log-panel";
-        panel.style.display = "none";
-
-        row.appendChild(btn);
-        row.appendChild(panel);
-
-        // Insert after the tool card wrapper
-        logDom.wrap.after(row);
-        logDom._logPanel = row;
-        logDom._logPanelBody = panel;
-        logDom._logToggleBtn = btn;
-        logDom._logCount = 0;
-      }
-
-      // Append log entry
-      const entry = document.createElement("div");
-      entry.className = `tool-log-entry tool-log-${data.level || "info"}`;
-
-      const level = data.level || "info";
-      const icon = level === "error" ? "❌" : level === "warn" ? "⚠️" : "📋";
-
-      const header = document.createElement("div");
-      header.className = "tool-log-header";
-      header.textContent = `${icon} ${data.message || ""}`;
-
-      entry.appendChild(header);
-
-      if (data.detail) {
-        const detail = document.createElement("pre");
-        detail.className = "tool-log-detail";
-        detail.textContent = data.detail;
-        entry.appendChild(detail);
-      }
-
-      logDom._logPanelBody.appendChild(entry);
-      logDom._logCount++;
-      logDom._logToggleBtn.textContent = `详细日志 (${logDom._logCount})`;
-
-      // Auto-scroll panel to bottom
-      logDom._logPanelBody.scrollTop = logDom._logPanelBody.scrollHeight;
-      this.ui.maybeAutoScroll(this.ui.isNearBottom(), { behavior: "auto" });
+      // tool.log events are now unused (kept for backward compat)
       return;
     }
 
@@ -4232,7 +4178,118 @@ class App {
     this.ws.send("chat.send", built.payload);
   }
 
-  // ── Tool Log Detail Panel ──────────────────────────────
+  // ── Inline Tool Log Panel ──────────────────────────────
+
+  _ensureToolLogPanel(toolCallId) {
+    const dom = this.ui.toolDomById.get(toolCallId);
+    if (!dom || dom._logPanel) return dom;
+
+    // Create "详细日志 (N)" button
+    const btn = document.createElement("button");
+    btn.className = "tool-log-btn";
+    btn.innerHTML = `详细日志 <span class="log-count">0</span>`;
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const panel = dom._logPanelEl;
+      const isOpen = panel.classList.contains("open");
+      panel.classList.toggle("open", !isOpen);
+      btn.classList.toggle("active", !isOpen);
+      if (!isOpen) {
+        dom._logBodyEl.scrollTop = dom._logBodyEl.scrollHeight;
+      }
+    });
+
+    // Create panel
+    const panel = document.createElement("div");
+    panel.className = "tool-log-panel";
+
+    const hd = document.createElement("div");
+    hd.className = "tool-log-panel-hd";
+    const toolName = dom.data && dom.data.name ? dom.data.name : "tool";
+    hd.innerHTML = `
+      <div class="hd-left">
+        <div class="hd-icon">L</div>
+        <span class="hd-title">${toolName} 执行日志</span>
+      </div>
+      <span class="hd-stats"></span>
+    `;
+
+    const body = document.createElement("div");
+    body.className = "tool-log-panel-body";
+
+    panel.appendChild(hd);
+    panel.appendChild(body);
+
+    // Insert button after the tool-card details element, panel below it
+    dom.wrap.appendChild(btn);
+    dom.wrap.after(panel);
+
+    dom._logPanel = true;
+    dom._logBtnEl = btn;
+    dom._logPanelEl = panel;
+    dom._logBodyEl = body;
+    dom._logStatsEl = hd.querySelector(".hd-stats");
+    dom._logCount = 0;
+
+    return dom;
+  }
+
+  _appendToolLog(toolCallId, logData) {
+    const dom = this._ensureToolLogPanel(toolCallId);
+    if (!dom) return;
+
+    dom._logCount++;
+    const seq = dom._logCount;
+
+    // Update button count
+    const countEl = dom._logBtnEl.querySelector(".log-count");
+    if (countEl) countEl.textContent = seq;
+    if (dom._logStatsEl) dom._logStatsEl.textContent = `${seq} 条`;
+
+    // Create entry
+    const entry = document.createElement("div");
+    entry.className = "tlog-entry";
+
+    const level = logData.level || "info";
+    const levelIcon = level === "error" ? "✕" : level === "warn" ? "!" : "›";
+    const levelCls = `tlog-level tlog-level-${level}`;
+
+    const hasDetail = !!(logData.detail && logData.detail.trim());
+
+    entry.innerHTML = `
+      <div class="tlog-entry-hd">
+        <span class="${levelCls}">${levelIcon}</span>
+        <span class="tlog-seq">${seq}</span>
+        <span class="tlog-msg">${this._escHtml(logData.message || "")}</span>
+        ${hasDetail ? '<span class="tlog-arrow">▶</span>' : ''}
+      </div>
+      ${hasDetail ? `<div class="tlog-detail"><pre class="tlog-detail-pre">${this._escHtml(logData.detail)}</pre></div>` : ''}
+    `;
+
+    if (hasDetail) {
+      entry.querySelector(".tlog-entry-hd").addEventListener("click", () => {
+        entry.classList.toggle("expanded");
+      });
+    }
+
+    dom._logBodyEl.appendChild(entry);
+
+    // Auto-scroll if panel is open
+    if (dom._logPanelEl.classList.contains("open")) {
+      dom._logBodyEl.scrollTop = dom._logBodyEl.scrollHeight;
+    }
+
+    this.ui.maybeAutoScroll(this.ui.isNearBottom(), { behavior: "auto" });
+  }
+
+  _escHtml(s) {
+    const d = document.createElement("div");
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  // ── Legacy Tool Log Panel (deprecated) ────────────────
   async _openToolLogPanel(toolCallId, toolName) {
     if (!this._toolLogPanel || !this._toolLogPanelOverlay) return;
 
