@@ -41,12 +41,44 @@ logger = get_logger(__name__)
 # Each rule is (compiled_regex, set_of_node_kinds_to_dirty).
 # First match wins; if nothing matches → full pipeline.
 _INTENT_RULES: List[Tuple[re.Pattern, List[str]]] = [
-    (re.compile(r"[换改].*(?:BGM|bgm|音乐|配乐|背景音)"), ["music_rec"]),
-    (re.compile(r"(?:换|改|重新).*(?:配音|语音|旁白|朗读|TTS|tts)"), ["tts"]),
-    (re.compile(r"(?:改|换|重写|重新写|修改).*(?:文案|脚本|字幕|台词|文本)"), ["generate_script"]),
-    (re.compile(r"(?:换|调|改).*(?:顺序|排列|排序|时间线)"), ["plan_timeline"]),
-    (re.compile(r"(?:重新渲染|重新导出|再渲染|再导出|渲染|导出)"), ["render"]),
-    (re.compile(r"(?:换|删|加|增|减|移除).*(?:片段|镜头|视频|素材|画面)"), ["filter_clips"]),
+    # BGM / music
+    (re.compile(r"[换改选].*(?:BGM|bgm|音乐|配乐|背景音|歌曲|曲子|旋律)"), ["music_rec"]),
+    (re.compile(r"(?:音乐|BGM|bgm|配乐).*(?:不[好行对]|太[快慢吵轻]|换|改|不喜欢|不合适)"), ["music_rec"]),
+    (re.compile(r"(?:更|再).*(?:欢快|安静|舒缓|激昂|轻松|动感|抒情|伤感).*(?:的|一点|些)"), ["music_rec"]),
+
+    # Voiceover / TTS
+    (re.compile(r"(?:换|改|重新|重).*(?:配音|语音|旁白|朗读|TTS|tts|声音|播报)"), ["tts"]),
+    (re.compile(r"(?:配音|语音|声音).*(?:太[快慢]|不[好行]|重新|换|改)"), ["tts"]),
+    (re.compile(r"(?:语速|声音|音色|情感).*(?:调|改|换|快|慢)"), ["tts"]),
+
+    # Script / subtitle text
+    (re.compile(r"(?:改|换|重写|重新写|修改|调整|优化).*(?:文案|脚本|字幕|台词|文本|文字|标题|文稿)"), ["generate_script"]),
+    (re.compile(r"(?:文案|脚本|字幕|台词).*(?:太[长短]|不[好行对]|改|换|修改|重写)"), ["generate_script"]),
+    (re.compile(r"第.{0,3}段.*(?:文[案字]|台词|字幕).*(?:改|换|变)"), ["generate_script"]),
+
+    # Segment ordering / timeline
+    (re.compile(r"(?:换|调|改|交换).*(?:顺序|排列|排序|位置|时间线)"), ["plan_timeline"]),
+    (re.compile(r"(?:第.{0,3}段.*(?:移|放|挪|换).*第|交换|互换|对调|前后)"), ["plan_timeline"]),
+    (re.compile(r"(?:拉长|缩短|加快|放慢|延长).*(?:片段|镜头|段落|时长)"), ["plan_timeline"]),
+
+    # Render / export
+    (re.compile(r"(?:重新渲染|重新导出|再渲染|再导出|渲染|导出|生成视频|出片)"), ["render"]),
+
+    # Clip filtering / segment changes
+    (re.compile(r"(?:换|删|加|增|减|移除|去掉|保留|不要).*(?:片段|镜头|视频|素材|画面|场景)"), ["filter_clips"]),
+    (re.compile(r"第.{0,3}段.*(?:删|去|不要|移除|换|替换)"), ["filter_clips"]),
+
+    # Re-group clips
+    (re.compile(r"(?:重新分组|重新分段|分组|分段)"), ["group_clips"]),
+
+    # Subtitle / text style (only affects text_rec, not script content)
+    (re.compile(r"(?:换|改|调).*(?:字体|字号|字色|字幕样式|文字样式|文字颜色)"), ["text_rec"]),
+
+    # Transition style
+    (re.compile(r"(?:换|改|加|调).*(?:转场|过渡|切换效果)"), ["transition_rec"]),
+
+    # Color / LUT (future V2, but add recognition now)
+    (re.compile(r"(?:换|改|调).*(?:色调|调色|滤镜|色彩|亮度|对比度|饱和度|LUT|lut)"), ["render"]),
 ]
 
 

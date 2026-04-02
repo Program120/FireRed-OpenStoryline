@@ -46,6 +46,7 @@ if SRC_DIR not in sys.path:
     sys.path.insert(0, SRC_DIR)
 
 from open_storyline.agent import build_agent, ClientContext
+from open_storyline.orchestrator.planner import build_orchestrator
 from open_storyline.utils.prompts import get_prompt
 from open_storyline.utils.media_handler import scan_media_dir
 from open_storyline.config import load_settings, default_config_path
@@ -1063,6 +1064,7 @@ class ChatSession:
         self.agent: Any = None
         self.node_manager = None
         self.client_context = None
+        self._orchestrator: Any = None  # V1 orchestrator components
         
         # 锁分离：避免“流式输出”阻塞上传/删除 pending
         self.chat_lock = asyncio.Lock()
@@ -1239,6 +1241,23 @@ class ChatSession:
                 vlm_override=vlm_override,
             )
             self._agent_build_key = agent_build_key
+
+            # V1: build orchestrator if enabled
+            if getattr(self.cfg, 'orchestrator', None) and self.cfg.orchestrator.use_v1:
+                try:
+                    artifact_store_v1 = ArtifactStore(self.cfg.project.outputs_dir, session_id=self.session_id)
+                    self._orchestrator = build_orchestrator(
+                        node_manager=self.node_manager,
+                        store=artifact_store_v1,
+                        session_id=self.session_id,
+                        media_dir=self.media_dir,
+                        lang=self.lang,
+                        max_parallel=getattr(self.cfg.orchestrator, 'max_parallel_workers', 3),
+                    )
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
+                    self._orchestrator = None
 
         if self.client_context is None:
             self.client_context = ClientContext(
@@ -2373,6 +2392,39 @@ async def ws_chat(ws: WebSocket, session_id: str):
 
                         async def pump_agent():
                             nonlocal new_messages
+
+                            # ── V1 orchestrator path ──
+                            orch = sess._orchestrator
+                            if orch and orch.get("graph") is not None:
+                                try:
+                                    await out_q.put(("assistant.delta", f"[V1] 分析编辑意图...\n"))
+                                    planner = orch["planner"]
+                                    worker = orch["worker"]
+                                    ps = orch["project_state"]
+
+                                    layers = planner.plan(prompt, ps)
+                                    if layers:
+                                        node_names = [n for layer in layers for n in layer]
+                                        await out_q.put(("assistant.delta", f"增量执行计划: {' → '.join(['[' + ','.join(l) + ']' for l in layers])}\n"))
+                                        await out_q.put(("assistant.delta", f"共 {len(node_names)} 个节点 (全量 {len(orch['dag'].nodes)} 个)\n\n"))
+
+                                        results = await worker.execute_plan(layers)
+                                        succeeded = sum(1 for v in results.values() if v)
+                                        await out_q.put(("assistant.delta", f"执行完成: {succeeded}/{len(results)} 个节点成功\n"))
+                                    else:
+                                        await out_q.put(("assistant.delta", "所有节点已是最新，无需重新执行。\n"))
+
+                                    # Save updated project state
+                                    orch["worker"].store.save_project_state(ps)
+
+                                    # Fall through to regular agent for LLM response
+                                    await out_q.put(("assistant.delta", "\n"))
+                                except Exception as e:
+                                    import traceback
+                                    traceback.print_exc()
+                                    await out_q.put(("assistant.delta", f"[V1 orchestrator error: {e}] 回退到标准模式...\n\n"))
+
+                            # ── V0 standard agent path ──
                             try:
                                 stream = sess.agent.astream(
                                     {"messages": sess.lc_messages},

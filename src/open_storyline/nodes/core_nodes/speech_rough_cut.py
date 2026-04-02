@@ -1,5 +1,6 @@
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional, Tuple
 from pathlib import Path
+import asyncio
 import json
 from open_storyline.nodes.core_nodes.base_node import BaseNode, NodeMeta
 from open_storyline.nodes.node_state import NodeState
@@ -67,11 +68,13 @@ class SpeechRoughCutNode(BaseNode):
             fps = asr_info.get('fps', 30)
 
             rough_cut_json = []
-            pre_ctx, nxt_ctx = '', ''
             asr_sentence_info = asr_info.get("asr_sentence_info", [])
 
-            for i, sentence in enumerate(asr_sentence_info):
-                # Generate user prompt with ASR sentence info
+            # V1 optimization: parallel LLM calls with concurrency limit
+            MAX_CONCURRENT_LLM = 5
+            semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM)
+
+            async def _process_sentence(i: int, sentence: dict) -> List[dict]:
                 user_prompt = get_prompt(
                     "speech_rough_cut.user",
                     lang=node_state.lang,
@@ -82,25 +85,30 @@ class SpeechRoughCutNode(BaseNode):
                     pre_ctx=asr_sentence_info[i-1]["text"] if i > 0 else '',
                     nxt_ctx=asr_sentence_info[i+1]["text"] if i < len(asr_sentence_info) - 1 else '',
                 )
+                async with semaphore:
+                    try:
+                        raw = await llm.complete(
+                            system_prompt=system_prompt,
+                            user_prompt=user_prompt,
+                            media=None,
+                            temperature=0.1,
+                            top_p=0.9,
+                            max_tokens=8092,
+                            model_preferences=None,
+                        )
+                        parsed_json = parse_json_dict(raw)
+                        return parsed_json.get('res', [])
+                    except Exception as e:
+                        node_state.node_summary.add_warning(f"LLM rough cut failed for sentence {i}: {e}")
+                        return []
 
-                # Call LLM for rough cut JSON
-                try:
-                    raw = await llm.complete(
-                        system_prompt=system_prompt,
-                        user_prompt=user_prompt,
-                        media=None,
-                        temperature=0.1,
-                        top_p=0.9,
-                        max_tokens=8092,
-                        model_preferences=None,
-                    )
-                    parsed_json = parse_json_dict(raw)
-                    print(parsed_json)
-                    rough_cut_json += parsed_json.get('res', [])
-                except Exception as e:
-                    # fallback to original ASR if LLM fails
-                    node_state.node_summary.add_warning(f"LLM rough cut failed: {e}, raw response: {raw}")
-                
+            # Fire all sentences concurrently (bounded by semaphore)
+            tasks = [_process_sentence(i, s) for i, s in enumerate(asr_sentence_info)]
+            results = await asyncio.gather(*tasks)
+
+            # Collect results in order
+            for res in results:
+                rough_cut_json += res
 
             # Group sentences based on gap threshold
             segments_groups = self.group_sentences(rough_cut_json, gap_threshold=gap_threshold)
