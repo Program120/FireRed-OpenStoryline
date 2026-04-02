@@ -4009,32 +4009,23 @@ class App {
     }
 
     if (type === "tool.progress") {
-      // Check if this progress message carries a __log__ payload
-      const msg = data.message || "";
-      let logParsed = null;
-      if (msg.startsWith("{") && msg.includes("__log__")) {
-        try { logParsed = JSON.parse(msg); } catch {}
-      }
-
-      if (logParsed && logParsed.__log__) {
-        // It's a log entry piggybacked on progress channel
-        this._appendToolLog(data.tool_call_id, logParsed);
-      } else {
-        // Regular progress update
-        this.ui.upsertToolCard(data.tool_call_id, {
-          server: data.server,
-          name: data.name,
-          state: "running",
-          progress: typeof data.progress === "number" ? data.progress : 0,
-          message: msg,
-          __progress_mode: "real",
-        });
-      }
+      this.ui.upsertToolCard(data.tool_call_id, {
+        server: data.server,
+        name: data.name,
+        state: "running",
+        progress: typeof data.progress === "number" ? data.progress : 0,
+        message: data.message || "",
+        __progress_mode: "real",
+      });
       return;
     }
 
     if (type === "tool.log") {
-      // tool.log events are now unused (kept for backward compat)
+      this._appendToolLog(data.tool_call_id, {
+        level: data.level || "info",
+        message: data.message || "",
+        detail: data.detail || "",
+      });
       return;
     }
 

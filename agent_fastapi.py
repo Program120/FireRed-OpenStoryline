@@ -1459,6 +1459,30 @@ class ChatSession:
             })
 
         elif et == "tool_progress":
+            msg = raw.get("message") or ""
+
+            # Check if this is a __log__ payload piggybacked on progress
+            if msg.startswith("{") and '"__log__"' in msg:
+                try:
+                    log_data = json.loads(msg)
+                    if log_data.get("__log__"):
+                        # Convert to tool_log record
+                        if "logs" not in rec:
+                            rec["logs"] = []
+                        rec["logs"].append({
+                            "level": log_data.get("level", "info"),
+                            "message": log_data.get("message", ""),
+                            "detail": log_data.get("detail", ""),
+                        })
+                        # Re-emit as tool_log type so WebSocket handler sends it
+                        raw["type"] = "tool_log"
+                        raw["level"] = log_data.get("level", "info")
+                        raw["message"] = log_data.get("message", "")
+                        raw["detail"] = log_data.get("detail", "")
+                        return rec
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
             progress = float(raw.get("progress", 0.0))
             total = raw.get("total")
             if total and float(total) > 0:
@@ -1469,7 +1493,7 @@ class ChatSession:
             rec.update({
                 "state": "running",
                 "progress": p,
-                "message": raw.get("message") or "",
+                "message": msg,
             })
 
         elif et == "tool_end":
