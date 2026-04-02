@@ -100,11 +100,15 @@ class SpeechRoughCutNode(BaseNode):
             )
 
             flagged_indices = set()
-            emit_tool_log("info", f"[预筛选] 发送 {total_sentences} 句给 LLM 批量审核",
-                          f"Prompt 摘要:\n{screen_prompt[:500]}...")
+            screen_system = "你是一个视频语音内容审核助手。快速判断哪些句子需要清洗处理。"
+
+            # Log: show all sentences to user
+            emit_tool_log("info", f"📝 全部 {total_sentences} 句 ASR 识别结果", sentences_block)
+            emit_tool_log("info", f"🤖 发送给模型进行预筛选",
+                          f"【System Prompt】\n{screen_system}\n\n【User Prompt】\n{screen_prompt}")
             try:
                 raw_screen = await llm.complete(
-                    system_prompt="你是一个视频语音内容审核助手。快速判断哪些句子需要清洗处理。",
+                    system_prompt=screen_system,
                     user_prompt=screen_prompt,
                     media=None,
                     temperature=0.1,
@@ -114,14 +118,16 @@ class SpeechRoughCutNode(BaseNode):
                 )
                 screen_result = parse_json_dict(raw_screen)
                 flagged_indices = set(screen_result.get("flagged", []))
+
+                # Log: show model response
+                flagged_texts = [f"  [{i}] \"{asr_sentence_info[i].get('text', '')}\"" for i in sorted(flagged_indices) if i < total_sentences]
                 emit_tool_log("info",
-                    f"[预筛选] LLM 返回: {len(flagged_indices)} 句需处理",
-                    f"flagged indices: {sorted(flagged_indices)}\nLLM 原始输出: {raw_screen[:500]}")
+                    f"✅ 预筛选完成: {len(flagged_indices)}/{total_sentences} 句需处理",
+                    f"【模型原始输出】\n{raw_screen}\n\n【需处理的句子】\n" + "\n".join(flagged_texts))
             except Exception as e:
-                # Screening failed → fall back to flagging all sentences
                 node_state.node_summary.add_warning(f"Batch screening failed: {e}, processing all sentences")
                 flagged_indices = set(range(total_sentences))
-                emit_tool_log("warn", f"[预筛选] 失败，降级为全量处理", str(e))
+                emit_tool_log("warn", f"⚠️ 预筛选失败，降级为全量处理", str(e))
 
             try:
                 await node_state.mcp_ctx.report_progress(1, 3, f"预筛选完成: {len(flagged_indices)}/{total_sentences} 句需处理")
@@ -135,9 +141,6 @@ class SpeechRoughCutNode(BaseNode):
                 for i, sentence in enumerate(asr_sentence_info):
                     if i in flagged_indices:
                         sent_text = sentence.get("text", "")
-                        emit_tool_log("info",
-                            f"[精细处理] 句 {i}: \"{sent_text[:50]}{'...' if len(sent_text) > 50 else ''}\"",
-                            f"完整句子: {json.dumps(sentence, ensure_ascii=False)}")
 
                         user_prompt = get_prompt(
                             "speech_rough_cut.user",
@@ -149,6 +152,11 @@ class SpeechRoughCutNode(BaseNode):
                             pre_ctx=asr_sentence_info[i-1]["text"] if i > 0 else '',
                             nxt_ctx=asr_sentence_info[i+1]["text"] if i < total_sentences - 1 else '',
                         )
+                        # Log: show input to model
+                        emit_tool_log("info",
+                            f"🔍 精细处理 句 {i}: \"{sent_text}\"",
+                            f"【发送给模型】\nSystem: {system_prompt[:200]}...\n\nUser:\n{user_prompt}")
+
                         try:
                             raw = await llm.complete(
                                 system_prompt=system_prompt,
@@ -162,14 +170,14 @@ class SpeechRoughCutNode(BaseNode):
                             parsed_json = parse_json_dict(raw)
                             res = parsed_json.get('res', [])
                             rough_cut_json += res
-                            action = "保留" if res else "删除"
+                            action = "✂️ 删除" if not res else f"✅ 保留 ({len(res)} 段)"
                             emit_tool_log("info",
-                                f"[精细处理] 句 {i} → {action} ({len(res)} 段)",
-                                f"LLM 判断: {parsed_json.get('reason', '')}\n结果: {json.dumps(res, ensure_ascii=False)[:300]}")
+                                f"句 {i} → {action}",
+                                f"【模型原始输出】\n{raw}\n\n【解析结果】\n原因: {parsed_json.get('reason', '无')}\n结果: {json.dumps(res, ensure_ascii=False)}")
                         except Exception as e:
                             node_state.node_summary.add_warning(f"LLM rough cut failed for sentence {i}: {e}")
                             rough_cut_json.append({"text": sentence.get("text", ""), "start": sentence.get("start", 0), "end": sentence.get("end", 0)})
-                            emit_tool_log("error", f"[精细处理] 句 {i} LLM 调用失败，保留原句", str(e))
+                            emit_tool_log("error", f"❌ 句 {i} LLM 调用失败，保留原句", str(e))
                         processed += 1
                         try:
                             await node_state.mcp_ctx.report_progress(

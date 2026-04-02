@@ -222,7 +222,7 @@ def emit_tool_log(level: str, message: str, detail: str = ""):
             "tool_call_id": _MCP_ACTIVE_TOOL_CALL_ID.get(),
             "level": level,
             "message": message,
-            "detail": detail[:2000] if detail else "",  # cap detail length
+            "detail": detail[:8000] if detail else "",  # cap detail length
         })
 
 

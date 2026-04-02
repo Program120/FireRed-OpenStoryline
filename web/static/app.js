@@ -4021,42 +4021,74 @@ class App {
     }
 
     if (type === "tool.log") {
-      // Append log entry to tool card's expanded body
       const logDom = this.ui.toolDomById.get(data.tool_call_id);
-      if (logDom && logDom.pre) {
-        const level = data.level || "info";
-        const prefix = level === "error" ? "❌" : level === "warn" ? "⚠️" : "📋";
-        let logLine = `\n${prefix} ${data.message || ""}`;
-        if (data.detail) {
-          logLine += `\n   ${data.detail.replace(/\n/g, "\n   ")}`;
-        }
-        logDom.pre.textContent += logLine;
+      if (!logDom) return;
 
-        // Auto-open details if there are logs to show
-        if (logDom.details && !logDom.details.open) {
-          logDom.details.open = true;
-        }
-        this.ui.maybeAutoScroll(this.ui.isNearBottom(), { behavior: "auto" });
+      // Create inline log panel container if not exists
+      if (!logDom._logPanel) {
+        const row = document.createElement("div");
+        row.className = "tool-log-row";
 
-        // Add "view detail log" button if not already present
-        if (!logDom._detailLogBtn) {
-          const btn = document.createElement("button");
-          btn.className = "tool-detail-log-btn";
-          btn.textContent = this.lang === "zh" ? "查看详细日志" : "View Detail Logs";
-          btn.setAttribute("data-tool-call-id", data.tool_call_id);
-          const toolName = logDom.data && logDom.data.name ? logDom.data.name : "";
-          btn.addEventListener("click", (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            this._openToolLogPanel(data.tool_call_id, toolName);
-          });
-          // Insert button after the pre element in bodyWrap
-          if (logDom.pre.parentNode) {
-            logDom.pre.parentNode.insertBefore(btn, logDom.pre.nextSibling);
+        // "详细日志" button
+        const btn = document.createElement("button");
+        btn.className = "tool-log-toggle-btn";
+        btn.textContent = "详细日志";
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const panel = logDom._logPanelBody;
+          if (panel.style.display === "none") {
+            panel.style.display = "block";
+            btn.classList.add("active");
+          } else {
+            panel.style.display = "none";
+            btn.classList.remove("active");
           }
-          logDom._detailLogBtn = btn;
-        }
+        });
+
+        // Scrollable log body
+        const panel = document.createElement("div");
+        panel.className = "tool-log-panel";
+        panel.style.display = "none";
+
+        row.appendChild(btn);
+        row.appendChild(panel);
+
+        // Insert after the tool card wrapper
+        logDom.wrap.after(row);
+        logDom._logPanel = row;
+        logDom._logPanelBody = panel;
+        logDom._logToggleBtn = btn;
+        logDom._logCount = 0;
       }
+
+      // Append log entry
+      const entry = document.createElement("div");
+      entry.className = `tool-log-entry tool-log-${data.level || "info"}`;
+
+      const level = data.level || "info";
+      const icon = level === "error" ? "❌" : level === "warn" ? "⚠️" : "📋";
+
+      const header = document.createElement("div");
+      header.className = "tool-log-header";
+      header.textContent = `${icon} ${data.message || ""}`;
+
+      entry.appendChild(header);
+
+      if (data.detail) {
+        const detail = document.createElement("pre");
+        detail.className = "tool-log-detail";
+        detail.textContent = data.detail;
+        entry.appendChild(detail);
+      }
+
+      logDom._logPanelBody.appendChild(entry);
+      logDom._logCount++;
+      logDom._logToggleBtn.textContent = `详细日志 (${logDom._logCount})`;
+
+      // Auto-scroll panel to bottom
+      logDom._logPanelBody.scrollTop = logDom._logPanelBody.scrollHeight;
+      this.ui.maybeAutoScroll(this.ui.isNearBottom(), { behavior: "auto" });
       return;
     }
 
