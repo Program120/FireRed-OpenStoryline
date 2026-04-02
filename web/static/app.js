@@ -4006,6 +4006,27 @@ class App {
       return;
     }
 
+    if (type === "tool.log") {
+      // Append log entry to tool card's expanded body
+      const logDom = this.ui.toolDomById.get(data.tool_call_id);
+      if (logDom && logDom.pre) {
+        const level = data.level || "info";
+        const prefix = level === "error" ? "❌" : level === "warn" ? "⚠️" : "📋";
+        let logLine = `\n${prefix} ${data.message || ""}`;
+        if (data.detail) {
+          logLine += `\n   ${data.detail.replace(/\n/g, "\n   ")}`;
+        }
+        logDom.pre.textContent += logLine;
+
+        // Auto-open details if there are logs to show
+        if (logDom.details && !logDom.details.open) {
+          logDom.details.open = true;
+        }
+        this.ui.maybeAutoScroll(this.ui.isNearBottom(), { behavior: "auto" });
+      }
+      return;
+    }
+
     if (type === "tool.end") {
       this.ui.upsertToolCard(data.tool_call_id, {
         server: data.server,
