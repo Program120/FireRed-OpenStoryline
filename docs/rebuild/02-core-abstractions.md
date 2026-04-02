@@ -245,25 +245,29 @@ class SkillLoader:
         self.base_dirs = base_dirs
         self.skills: dict[str, LoadedSkill] = {}
 
-    async def discover(self):
-        """扫描所有目录，解析 SKILL.md，加载 handler.py（如有）。"""
-        for base_dir in self.base_dirs:
-            for skill_dir in Path(base_dir).iterdir():
-                if not skill_dir.is_dir():
-                    continue
-                skill_md = skill_dir / "SKILL.md"
-                if not skill_md.exists():
-                    continue
+    async def discover(self, db: AsyncSession):
+        """
+        从 skill_registry 表查询 status='active' 的记录，
+        按 local_path 从文件系统加载 SKILL.md 和 handler.py。
+        """
+        rows = await db.execute(
+            select(SkillRegistry).where(SkillRegistry.status == "active")
+        )
+        for row in rows.scalars():
+            skill_dir = Path(row.local_path)
+            skill_md = skill_dir / "SKILL.md"
+            if not skill_md.exists():
+                continue
 
-                meta = self._parse_skill_md(skill_md)
-                handler = self._load_handler(skill_dir, meta)
+            meta = self._parse_skill_md(skill_md)
+            handler = self._load_handler(skill_dir, meta)
 
-                self.skills[meta["pipeline"]["skill_id"]] = LoadedSkill(
-                    meta=meta,
-                    handler=handler,          # SkillHandler instance or None
-                    skill_dir=str(skill_dir),
-                    source="builtin" | "installed" | "custom",
-                )
+            self.skills[meta["pipeline"]["skill_id"]] = LoadedSkill(
+                meta=meta,
+                handler=handler,          # SkillHandler instance or None
+                skill_dir=str(skill_dir),
+                source=row.source,
+            )
 
     def _parse_skill_md(self, path: Path) -> dict:
         """解析 SKILL.md 的 YAML frontmatter。"""
@@ -341,34 +345,9 @@ def skills_to_langchain_tools(skill_loader: SkillLoader, ctx: SkillContext) -> l
 
 Agent 构建时调用 `skills_to_langchain_tools()` 获取所有已启用 Skill 作为 tool binding。
 
-## 6. 多用户 Skill 加载
+## 6. Skill 加载策略
 
-> **重要**：对于多用户场景，installed/custom Skill 从数据库 `user_installed_skills` 表加载（每用户独立），仅 builtin Skill 从文件系统加载。
-
-```python
-class UserSkillLoader:
-    """按用户加载 Skill：builtin 从文件系统，installed/custom 从 DB。"""
-
-    def __init__(self, builtin_loader: SkillLoader, db: AsyncSession):
-        self.builtin_loader = builtin_loader
-        self.db = db
-
-    async def load_for_user(self, user_id: str) -> dict[str, LoadedSkill]:
-        # 1. builtin Skill（全局共享，从文件系统）
-        skills = dict(self.builtin_loader.skills)
-
-        # 2. 用户已安装的 Skill（从 DB）
-        rows = await self.db.query(UserInstalledSkill).filter(
-            UserInstalledSkill.user_id == user_id,
-            UserInstalledSkill.enabled == True,
-        ).all()
-        for row in rows:
-            meta = parse_skill_md_content(row.skill_md)
-            handler = load_handler_from_code(row.handler_code) if row.handler_code else None
-            skills[row.skill_id] = LoadedSkill(meta=meta, handler=handler, source=row.source)
-
-        return skills
-```
+> 当前阶段 Skill 全局共享，SkillLoader 从文件系统加载所有启用的 Skill。用户级 Skill 隔离作为后续迭代。
 
 ## 7. Skill 安装/管理 API
 

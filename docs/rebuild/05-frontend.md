@@ -187,8 +187,8 @@ function useWebSocket(sessionId: string) {
   <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
   <Route path="/session/:sessionId" element={<ProtectedRoute><SessionPage /></ProtectedRoute>} />
   <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-  <Route path="/settings/skills" element={<ProtectedRoute><MySkillsPage /></ProtectedRoute>} />
-  <Route path="/skills" element={<ProtectedRoute><SkillMarketPage /></ProtectedRoute>} />
+  {/* Skill 管理页面仅管理员可见，作为 /admin/skills 路由 */}
+  <Route path="/admin/skills" element={<ProtectedRoute adminOnly><AdminSkillsPage /></ProtectedRoute>} />
 </Routes>
 ```
 

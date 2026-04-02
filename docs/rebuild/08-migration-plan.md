@@ -13,7 +13,7 @@
 - [ ] `core/concurrency.py` — BatchExecutor
 - [ ] `core/skill_registry.py` — Skill 注册表
 - [ ] `db/engine.py` — SQLAlchemy async engine
-- [ ] `db/models.py` — 所有 ORM 模型（含 users、refresh_tokens、user_model_configs、user_preferences、skill_registry、user_installed_skills 等认证/Skill 仓库相关表）
+- [ ] `db/models.py` — 所有 ORM 模型（含 users、refresh_tokens、user_model_configs、user_preferences、skill_registry 等认证/Skill 仓库相关表）
 - [ ] `alembic/` — 初始迁移脚本
 - [ ] `orchestrator/dag.py` — 从 V1 `task_dag.py` 迁移
 - [ ] `api/middleware.py` — 认证中间件（JWT 验证 + `get_current_user` 依赖注入）
@@ -121,7 +121,7 @@ React 前端完整替代当前 HTML/JS。
 - [ ] Week 7: Pipeline DAG 可视化（ReactFlow）
 - [ ] Week 7: 恢复控制（从任意节点重新执行）
 - [ ] Week 7: 设置页 (`/settings`) + 模型配置管理
-- [ ] Week 7: Skill 管理 (`/settings/skills`) + Skill 市场 (`/skills`)
+- [ ] Week 7: 管理员 Skill 管理页 (`/admin/skills`)（admin-only）
 
 ### 验收标准
 - 浏览器打开 `/session/{id}` → WebSocket 连接 → 收到 snapshot → UI 完整恢复
