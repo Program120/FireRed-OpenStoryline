@@ -235,6 +235,23 @@ class PlanTimelineProConfig(ConfigBaseModel):
     is_text_beats: bool = False  
     # Whether text start time should align with detected music beats
 
+class OrchestratorConfig(ConfigBaseModel):
+    """V1 orchestrator feature flag and settings."""
+    use_v1: bool = False
+    max_parallel_workers: int = 3
+
+
+class RenderConfig(ConfigBaseModel):
+    """Render pipeline configuration."""
+    engine: str = "moviepy"
+    subtitle_template: str = "classic_white"
+
+
+class SessionDBConfig(ConfigBaseModel):
+    """SQLite session persistence configuration."""
+    db_path: str = ".storyline/sessions.db"
+
+
 class Settings(ConfigBaseModel):
     developer: DeveloperConfig
     project: ProjectConfig
@@ -255,6 +272,11 @@ class Settings(ConfigBaseModel):
     recommend_text: RecommendTextConfig
     plan_timeline: PlanTimelineConfig
     plan_timeline_pro: PlanTimelineProConfig
+
+    # V1 optional sections (backward-compatible defaults)
+    orchestrator: OrchestratorConfig = Field(default_factory=OrchestratorConfig)
+    render: RenderConfig = Field(default_factory=RenderConfig)
+    session_db: SessionDBConfig = Field(default_factory=SessionDBConfig)
 
 
 def load_settings(config_path: str | Path) -> Settings:

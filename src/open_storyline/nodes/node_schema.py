@@ -414,6 +414,13 @@ class PlanTimelineOutput(BaseModel):
     tracks: List[TimelineTracks] = Field(default_factory=list, description="Timeline track collection")
 
 class RenderVideoInput(BaseInput):
+    preview_mode: Annotated[bool, Field(
+        default=False,
+        description=(
+            "When True, overrides output to 480p, CRF=28, FPS=15 for a fast "
+            "lightweight preview render."
+        ),
+    )]
     aspect_ratio: Annotated[str | None, Field(
         default=None,
         description="When explicitly specified, forces the canvas to one of 16:9, 4:3, 1:1, 3:4, 9:16. If unset, the system automatically infers the most suitable aspect ratio."
