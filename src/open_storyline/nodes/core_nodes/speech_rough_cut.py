@@ -71,75 +71,116 @@ class SpeechRoughCutNode(BaseNode):
             asr_sentence_info = asr_info.get("asr_sentence_info", [])
             total_sentences = len(asr_sentence_info)
 
-            # V1 optimization: batch sentences to reduce LLM calls
-            # MCP sampling is serial per-session, so parallelism doesn't help.
-            # Instead, batch N sentences into one LLM call.
-            BATCH_SIZE = 10
-            batches = []
-            for batch_start in range(0, total_sentences, BATCH_SIZE):
-                batches.append(asr_sentence_info[batch_start:batch_start + BATCH_SIZE])
+            # ── V1 optimization: two-phase approach ──
+            # Phase 1: One LLM call to batch-screen all sentences (which need editing?)
+            # Phase 2: Only send flagged sentences for precise timestamp editing
+            #
+            # This reduces 59 LLM calls to ~1 + N (where N << 59)
 
-            total_batches = len(batches)
             try:
-                await node_state.mcp_ctx.report_progress(0, total_batches + 1, f"批量分析 {total_sentences} 句 ({total_batches} 批)...")
+                await node_state.mcp_ctx.report_progress(0, 3, f"预筛选 {total_sentences} 句...")
             except Exception:
                 pass
 
-            for batch_idx, batch in enumerate(batches):
-                # Build a combined prompt with all sentences in this batch
-                batch_items = []
-                for i_in_batch, sentence in enumerate(batch):
-                    global_idx = batch_idx * BATCH_SIZE + i_in_batch
-                    batch_items.append({
-                        "index": global_idx,
-                        "sentence": sentence,
-                        "pre_ctx": asr_sentence_info[global_idx - 1]["text"] if global_idx > 0 else '',
-                        "nxt_ctx": asr_sentence_info[global_idx + 1]["text"] if global_idx < total_sentences - 1 else '',
-                    })
+            # Phase 1: Batch screening
+            sentences_summary = []
+            for i, s in enumerate(asr_sentence_info):
+                sentences_summary.append(f"[{i}] \"{s.get('text', '')}\"")
+            sentences_block = "\n".join(sentences_summary)
 
-                # For batch mode: send each sentence individually but sequentially within batch
-                # (MCP sampling is serial anyway, batching just reduces overhead)
-                for item in batch_items:
-                    user_prompt = get_prompt(
-                        "speech_rough_cut.user",
-                        lang=node_state.lang,
-                        curr_asr_sentence_info=json.dumps(item["sentence"]),
-                        asr_text=asr_info.get("asr_text", ''),
-                        history_rough_cut_jsons=json.dumps(history_rough_cut_jsons),
-                        user_request=user_request,
-                        pre_ctx=item["pre_ctx"],
-                        nxt_ctx=item["nxt_ctx"],
-                    )
-                    try:
-                        raw = await llm.complete(
-                            system_prompt=system_prompt,
-                            user_prompt=user_prompt,
-                            media=None,
-                            temperature=0.1,
-                            top_p=0.9,
-                            max_tokens=8092,
-                            model_preferences=None,
+            screen_prompt = (
+                f"以下是一段视频的 ASR 识别结果，共 {total_sentences} 句。\n"
+                f"用户要求: {user_request}\n\n"
+                f"{sentences_block}\n\n"
+                f"请判断哪些句子需要编辑处理（包含脏话、口水词、无意义语气词、重复内容等）。\n"
+                f"只输出需要处理的句子编号列表，JSON格式: {{\"flagged\": [0, 3, 7, ...]}}\n"
+                f"如果所有句子都正常不需要处理，输出: {{\"flagged\": []}}\n"
+                f"只输出JSON，不要其他内容。"
+            )
+
+            flagged_indices = set()
+            try:
+                raw_screen = await llm.complete(
+                    system_prompt="你是一个视频语音内容审核助手。快速判断哪些句子需要清洗处理。",
+                    user_prompt=screen_prompt,
+                    media=None,
+                    temperature=0.1,
+                    top_p=0.9,
+                    max_tokens=2048,
+                    model_preferences=None,
+                )
+                screen_result = parse_json_dict(raw_screen)
+                flagged_indices = set(screen_result.get("flagged", []))
+            except Exception as e:
+                # Screening failed → fall back to flagging all sentences
+                node_state.node_summary.add_warning(f"Batch screening failed: {e}, processing all sentences")
+                flagged_indices = set(range(total_sentences))
+
+            try:
+                await node_state.mcp_ctx.report_progress(1, 3, f"预筛选完成: {len(flagged_indices)}/{total_sentences} 句需处理")
+            except Exception:
+                pass
+
+            # Phase 2: Precise editing only for flagged sentences
+            if flagged_indices:
+                flagged_count = len(flagged_indices)
+                processed = 0
+                for i, sentence in enumerate(asr_sentence_info):
+                    if i in flagged_indices:
+                        user_prompt = get_prompt(
+                            "speech_rough_cut.user",
+                            lang=node_state.lang,
+                            curr_asr_sentence_info=json.dumps(sentence),
+                            asr_text=asr_info.get("asr_text", ''),
+                            history_rough_cut_jsons=json.dumps(history_rough_cut_jsons),
+                            user_request=user_request,
+                            pre_ctx=asr_sentence_info[i-1]["text"] if i > 0 else '',
+                            nxt_ctx=asr_sentence_info[i+1]["text"] if i < total_sentences - 1 else '',
                         )
-                        parsed_json = parse_json_dict(raw)
-                        rough_cut_json += parsed_json.get('res', [])
-                    except Exception as e:
-                        node_state.node_summary.add_warning(f"LLM rough cut failed for sentence {item['index']}: {e}")
+                        try:
+                            raw = await llm.complete(
+                                system_prompt=system_prompt,
+                                user_prompt=user_prompt,
+                                media=None,
+                                temperature=0.1,
+                                top_p=0.9,
+                                max_tokens=8092,
+                                model_preferences=None,
+                            )
+                            parsed_json = parse_json_dict(raw)
+                            rough_cut_json += parsed_json.get('res', [])
+                        except Exception as e:
+                            node_state.node_summary.add_warning(f"LLM rough cut failed for sentence {i}: {e}")
+                            # Fallback: keep original sentence
+                            rough_cut_json.append({"text": sentence.get("text", ""), "start": sentence.get("start", 0), "end": sentence.get("end", 0)})
+                        processed += 1
+                        try:
+                            await node_state.mcp_ctx.report_progress(
+                                1 + processed, flagged_count + 2,
+                                f"精细处理 {processed}/{flagged_count} 句"
+                            )
+                        except Exception:
+                            pass
+                    else:
+                        # Not flagged → keep original sentence as-is
+                        rough_cut_json.append({
+                            "text": sentence.get("text", ""),
+                            "start": sentence.get("start", 0),
+                            "end": sentence.get("end", 0),
+                        })
 
-                # Report progress per batch
-                try:
-                    done_sentences = min((batch_idx + 1) * BATCH_SIZE, total_sentences)
-                    await node_state.mcp_ctx.report_progress(
-                        batch_idx + 1, total_batches + 1,
-                        f"已分析 {done_sentences}/{total_sentences} 句"
-                    )
-                except Exception:
-                    pass
+            else:
+                # Nothing flagged → keep all sentences as-is
+                for sentence in asr_sentence_info:
+                    rough_cut_json.append({
+                        "text": sentence.get("text", ""),
+                        "start": sentence.get("start", 0),
+                        "end": sentence.get("end", 0),
+                    })
 
             # Report FFmpeg cutting phase
             try:
-                await node_state.mcp_ctx.report_progress(
-                    total_batches, total_batches + 1, "FFmpeg 切割视频中..."
-                )
+                await node_state.mcp_ctx.report_progress(2, 3, "FFmpeg 切割视频中...")
             except Exception:
                 pass
 
