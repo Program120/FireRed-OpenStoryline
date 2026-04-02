@@ -1,0 +1,143 @@
+<mxfile host="app.diagrams.net" modified="2026-04-02" agent="Claude" version="24.0">
+  <diagram id="lifecycle" name="请求生命周期">
+    <mxGraphModel dx="1400" dy="1100" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="&lt;b&gt;请求生命周期: 从用户消息到视频输出&lt;/b&gt;" style="text;html=1;fontSize=18;align=center;" vertex="1" parent="1">
+          <mxGeometry x="300" y="10" width="500" height="35" as="geometry"/>
+        </mxCell>
+
+        <!-- ====== 泳道标题 ====== -->
+        <mxCell id="lane1-bg" value="" style="fillColor=#E3F2FD;strokeColor=none;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="20" y="60" width="200" height="1000" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane1" value="&lt;b&gt;用户 / 浏览器&lt;/b&gt;" style="text;html=1;fontSize=11;fontColor=#1565C0;align=center;" vertex="1" parent="1">
+          <mxGeometry x="20" y="60" width="200" height="25" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="lane2-bg" value="" style="fillColor=#E8F5E9;strokeColor=none;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="240" y="60" width="230" height="1000" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane2" value="&lt;b&gt;FastAPI 服务器&lt;/b&gt;" style="text;html=1;fontSize=11;fontColor=#2E7D32;align=center;" vertex="1" parent="1">
+          <mxGeometry x="240" y="60" width="230" height="25" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="lane3-bg" value="" style="fillColor=#F3E5F5;strokeColor=none;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="490" y="60" width="230" height="1000" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane3" value="&lt;b&gt;LangChain Agent&lt;/b&gt;" style="text;html=1;fontSize=11;fontColor=#7B1FA2;align=center;" vertex="1" parent="1">
+          <mxGeometry x="490" y="60" width="230" height="25" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="lane4-bg" value="" style="fillColor=#FFF3E0;strokeColor=none;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="740" y="60" width="230" height="1000" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane4" value="&lt;b&gt;MCP 服务器&lt;/b&gt;" style="text;html=1;fontSize=11;fontColor=#E65100;align=center;" vertex="1" parent="1">
+          <mxGeometry x="740" y="60" width="230" height="25" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="lane5-bg" value="" style="fillColor=#E8F5E9;strokeColor=none;opacity=20;" vertex="1" parent="1">
+          <mxGeometry x="990" y="60" width="230" height="1000" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane5" value="&lt;b&gt;节点 + 存储&lt;/b&gt;" style="text;html=1;fontSize=11;fontColor=#1B5E20;align=center;" vertex="1" parent="1">
+          <mxGeometry x="990" y="60" width="230" height="25" as="geometry"/>
+        </mxCell>
+
+        <!-- ====== 步骤 ====== -->
+        <!-- Step 1: 用户上传素材+发送消息 -->
+        <mxCell id="step1" value="&lt;b&gt;1. 上传素材 + 发送消息&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;通过 WebSocket 发送 chat.send&lt;br&gt;附带 attachment_ids&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1976D2;fontColor=#fff;strokeColor=none;arcSize=15;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="35" y="110" width="170" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- Step 2: FastAPI 接收 -->
+        <mxCell id="step2" value="&lt;b&gt;2. WebSocket 接收&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;验证 session_id&lt;br&gt;获取 ChatSession&lt;br&gt;应用自定义模型配置&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#388E3C;fontColor=#fff;strokeColor=none;arcSize=15;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="260" y="195" width="190" height="65" as="geometry"/>
+        </mxCell>
+
+        <!-- Step 3: 注入素材信息 -->
+        <mxCell id="step3" value="&lt;b&gt;3. 注入素材统计信息&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;将已上传素材摘要注入为&lt;br&gt;SystemMessage&lt;br&gt;追加 HumanMessage&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#388E3C;fontColor=#fff;strokeColor=none;arcSize=15;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="260" y="285" width="190" height="65" as="geometry"/>
+        </mxCell>
+
+        <!-- Step 4: Agent 决策 -->
+        <mxCell id="step4" value="&lt;b&gt;4. Agent 决策&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;agent.astream()&lt;br&gt;LLM 分析意图&lt;br&gt;决定调用哪个工具&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#7B1FA2;fontColor=#fff;strokeColor=none;arcSize=15;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="510" y="375" width="190" height="65" as="geometry"/>
+        </mxCell>
+
+        <!-- Step 5: 工具拦截器 (Before) -->
+        <mxCell id="step5" value="&lt;b&gt;5. 拦截器 (执行前)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;inject_media_content_before&lt;br&gt;检查前置依赖是否完成&lt;br&gt;缺失时递归执行前置节点&lt;br&gt;注入媒体内容到参数&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#9C27B0;fontColor=#fff;strokeColor=none;arcSize=15;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="510" y="465" width="190" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- Step 6: MCP 工具执行 -->
+        <mxCell id="step6" value="&lt;b&gt;6. MCP 工具调用&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;create_tool_wrapper()&lt;br&gt;提取 session_id&lt;br&gt;构建 NodeState&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E65100;fontColor=#fff;strokeColor=none;arcSize=15;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="760" y="570" width="190" height="65" as="geometry"/>
+        </mxCell>
+
+        <!-- Step 7: 节点处理 -->
+        <mxCell id="step7" value="&lt;b&gt;7. 节点执行&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;BaseNode.__call__()&lt;br&gt;load_inputs_from_client()&lt;br&gt;process() 执行核心逻辑&lt;br&gt;可能调用 VLM/LLM&lt;br&gt;pack_outputs_to_client()&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2E7D32;fontColor=#fff;strokeColor=none;arcSize=15;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="660" width="190" height="85" as="geometry"/>
+        </mxCell>
+
+        <!-- Step 8: 保存制品 -->
+        <mxCell id="step8" value="&lt;b&gt;8. 保存到制品库&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;ArtifactStore.save_result()&lt;br&gt;解压 base64 媒体文件&lt;br&gt;更新 meta.json 索引&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C62828;fontColor=#fff;strokeColor=none;arcSize=15;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="770" width="190" height="65" as="geometry"/>
+        </mxCell>
+
+        <!-- Step 9: 返回工具消息 -->
+        <mxCell id="step9" value="&lt;b&gt;9. 返回 ToolMessage&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;包含 artifact_id&lt;br&gt;执行摘要和状态&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E65100;fontColor=#fff;strokeColor=none;arcSize=15;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="760" y="860" width="190" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- Step 10: 判断下一步 -->
+        <mxCell id="step10" value="&lt;b&gt;10. LLM 判断&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;继续调用下一个工具?&lt;br&gt;还是生成最终回复?&lt;/font&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=#7B1FA2;fontColor=#fff;strokeColor=none;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="530" y="855" width="170" height="70" as="geometry"/>
+        </mxCell>
+
+        <!-- Step 11: 流式返回 -->
+        <mxCell id="step11" value="&lt;b&gt;11. 流式推送结果&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;WebSocket 推送:&lt;br&gt;assistant.delta (文本流)&lt;br&gt;tool_start / tool_end (状态)&lt;br&gt;progress (进度)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#388E3C;fontColor=#fff;strokeColor=none;arcSize=15;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="260" y="950" width="190" height="75" as="geometry"/>
+        </mxCell>
+
+        <!-- Step 12: 展示结果 -->
+        <mxCell id="step12" value="&lt;b&gt;12. 展示结果&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;显示对话回复&lt;br&gt;下载生成的视频&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1976D2;fontColor=#fff;strokeColor=none;arcSize=15;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="35" y="960" width="170" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- ====== 连接箭头 ====== -->
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#666;strokeWidth=1.5;" edge="1" parent="1" source="step1" target="step2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#666;strokeWidth=1.5;" edge="1" parent="1" source="step2" target="step3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#666;strokeWidth=1.5;" edge="1" parent="1" source="step3" target="step4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#666;strokeWidth=1.5;" edge="1" parent="1" source="step4" target="step5"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#666;strokeWidth=1.5;" edge="1" parent="1" source="step5" target="step6"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#666;strokeWidth=1.5;" edge="1" parent="1" source="step6" target="step7"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#666;strokeWidth=1.5;" edge="1" parent="1" source="step7" target="step8"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#666;strokeWidth=1.5;" edge="1" parent="1" source="step8" target="step9"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#666;strokeWidth=1.5;" edge="1" parent="1" source="step9" target="step10"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#666;strokeWidth=1.5;" edge="1" parent="1" source="step10" target="step11"><mxGeometry relative="1" as="geometry"/>
+          <Array as="points"><mxPoint x="500" y="990"/><mxPoint x="460" y="990"/></Array>
+        </mxCell>
+        <mxCell id="e10label" value="&lt;font color=&quot;#388E3C&quot; style=&quot;font-size:9px&quot;&gt;&lt;b&gt;结束: 生成回复&lt;/b&gt;&lt;/font&gt;" style="edgeLabel;html=1;" vertex="1" connectable="0" parent="e10">
+          <mxGeometry x="0.3" relative="1" as="geometry"><mxPoint as="offset"/></mxGeometry>
+        </mxCell>
+        <mxCell id="e11" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#666;strokeWidth=1.5;" edge="1" parent="1" source="step11" target="step12"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- 循环箭头: 继续调用工具 -->
+        <mxCell id="loop" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#E53935;strokeWidth=2.5;dashed=1;dashPattern=8 4;exitX=0;exitY=0.3;entryX=0;entryY=1;" edge="1" parent="1" source="step10" target="step4">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="490" y="870"/>
+              <mxPoint x="490" y="440"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="loop-label" value="&lt;font color=&quot;#E53935&quot; style=&quot;font-size:10px&quot;&gt;&lt;b&gt;继续: 调用下一个工具&lt;br&gt;(工具调用循环)&lt;/b&gt;&lt;/font&gt;" style="edgeLabel;html=1;" vertex="1" connectable="0" parent="loop">
+          <mxGeometry x="0.2" relative="1" as="geometry"><mxPoint x="-40" as="offset"/></mxGeometry>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
