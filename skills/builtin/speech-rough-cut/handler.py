@@ -118,6 +118,12 @@ class Handler(SkillHandler):
             groups = _group_sentences(rough_cut_json, gap_threshold)
             ranges = [{"start": g[0]["start"], "end": g[-1]["end"]} for g in groups]
 
+            # Extend the last range to cover any trailing content after the
+            # last ASR sentence (ASR may not detect short utterances at the end).
+            video_end_ms = source_ref.get("duration") or source_ref.get("end", 0)
+            if ranges and video_end_ms > 0 and video_end_ms - ranges[-1]["end"] < 2000:
+                ranges[-1]["end"] = video_end_ms
+
             segments = []
             for ci, rng in enumerate(ranges):
                 seg = cut_video_segment_with_ffmpeg(
