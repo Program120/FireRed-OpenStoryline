@@ -107,8 +107,6 @@ class GenerateAITransitionNode(BaseNode):
         split_shots = inputs.get("split_shots", {})
         speech_rough_cut = inputs.get("speech_rough_cut", {})
         groups = group_clips.get("groups", [])
-        # Prefer rough-cut clips (profanity removed) over original split_shots
-        clips = speech_rough_cut.get('clips') or split_shots.get('clips', [])
 
         runtime_cfg = self._resolve_ai_transition_runtime_cfg(inputs)
         provider = runtime_cfg["provider"]
@@ -118,7 +116,11 @@ class GenerateAITransitionNode(BaseNode):
         resolution = inputs.get("resolution")
         user_request = inputs.get("user_request", "以一镜到底的方式拍摄，场景丝滑过渡")
 
-        clip_map = {clip['clip_id']: clip for clip in clips}
+        # Build clip_map from both sources so group_clips can reference either set of IDs.
+        # Rough-cut clips take precedence (same ID overrides split_shots version).
+        clip_map = {clip['clip_id']: clip for clip in split_shots.get('clips', [])}
+        for clip in speech_rough_cut.get('clips', []):
+            clip_map[clip['clip_id']] = clip
         total_transitions = max(sum(len(group.get("clip_ids", [])) for group in groups) - 1, 0)
 
         await node_state.mcp_ctx.report_progress(
@@ -310,8 +312,8 @@ class GenerateAITransitionNode(BaseNode):
             api_key=api_key,
             model_name=model_name,
             prompt=prompt,
-            first_frame_data_url=encode_image_to_data_url(aligned_first_frame),
-            last_frame_data_url=encode_image_to_data_url(aligned_last_frame),
+            first_frame_data_url=encode_image_to_data_url(aligned_first_frame, max_long_edge=1280),
+            last_frame_data_url=encode_image_to_data_url(aligned_last_frame, max_long_edge=1280),
             duration=transition_duration,
             resolution=resolution,
             output_dir=node_cache_dir,
