@@ -79,11 +79,17 @@ class ToolInterceptor:
     ):
         try:
             tool_call_type = request.args.get('tool_call_type', 'auto')
-            # for default tool call 
+            # for default tool call
             if tool_call_type!= 'auto':
                 request.args = request.args.get('args', {})
 
             runtime = request.runtime
+            # When called from the V1 orchestrator (Worker), runtime may be
+            # None because tool.ainvoke() is called directly without an agent
+            # context.  The orchestrator already assembles inputs and saves
+            # results itself, so we can safely pass through.
+            if runtime is None:
+                return await handler(request)
             context = runtime.context
             store = runtime.store
             session_id = context.session_id
@@ -342,6 +348,10 @@ class ToolInterceptor:
         """End agent run when task is marked complete."""
         try:
             tool_call_result: CallToolResult = await handler(request)
+            # When called from V1 orchestrator, runtime may be None.
+            # The orchestrator handles saving results itself.
+            if request.runtime is None:
+                return tool_call_result
             client_ctx = request.runtime.context
 
             

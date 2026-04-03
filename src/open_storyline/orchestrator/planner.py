@@ -339,8 +339,18 @@ class Worker:
                     )
                     return True
 
-                # 3. Call the MCP tool
+                # 3. Call the tool
+                # DAG uses node_kind as identifier (e.g. "asr"), but tools are
+                # registered by node_id (e.g. "local_asr"). Resolve via kind mapping.
                 tool = self.node_manager.get_tool(node_id)
+                if tool is None:
+                    # Try resolving node_id via kind_to_node_ids
+                    candidates = self.node_manager.kind_to_node_ids.get(node_id, [])
+                    for cid in candidates:
+                        tool = self.node_manager.get_tool(cid)
+                        if tool is not None:
+                            node_id = cid  # use the resolved node_id for saving
+                            break
                 if tool is None:
                     raise RuntimeError(f"No tool registered for node '{node_id}'")
 
@@ -350,6 +360,11 @@ class Worker:
                     "mode": "default",
                 }
                 tool_call_input.update(input_data)
+
+                # For skill-based tools (in-process), inject session_id
+                # so the handler can build a proper SkillContext.
+                if (tool.metadata or {}).get("_is_skill"):
+                    tool_call_input["session_id"] = self.session_id
 
                 # Use tool.ainvoke which goes through the normal MCP path
                 result = await tool.ainvoke(tool_call_input)
@@ -383,6 +398,15 @@ class Worker:
                     return False
 
                 # 5. Save result to artifact store
+                # Ensure the result dict has the format ArtifactStore expects:
+                # {artifact_id, summary, tool_excute_result}
+                # MCP tools via pass-through may return raw results without this wrapper.
+                if "artifact_id" not in result_data:
+                    result_data = {
+                        "artifact_id": artifact_id,
+                        "summary": {},
+                        "tool_excute_result": result_data,
+                    }
                 self.store.save_result(self.session_id, node_id, result_data)
 
                 # 6. Update project state

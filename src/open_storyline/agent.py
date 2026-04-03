@@ -17,6 +17,8 @@ from open_storyline.nodes.node_manager import NodeManager
 from open_storyline.mcp.hooks.chat_middleware import handle_tool_errors, on_progress, log_tool_request
 from open_storyline.mcp.sampling_handler import make_sampling_callback
 from open_storyline.skills.skills_io import load_skills
+from open_storyline.core.skill_to_tool import load_builtin_skill_tools
+from open_storyline.core.skill_middleware import handle_skill_context
 
 logger = logging.getLogger(__name__)
 
@@ -229,13 +231,36 @@ async def build_agent(
 
     tools = await client.get_tools()
     skills = await load_skills(cfg.skills.skill_dir) # Load skills
+
+    # Load builtin skill tools (in-process, no MCP) and replace MCP tools
+    # with the same name. This allows gradual migration from MCP nodes to skills.
+    from pathlib import Path as _Path
+    builtin_skill_tools, _skill_loader = load_builtin_skill_tools(
+        project_root=_Path.cwd(),
+        config=cfg,
+    )
+    if builtin_skill_tools:
+        skill_names = {t.name for t in builtin_skill_tools}
+        logger.info(f"Loaded {len(builtin_skill_tools)} builtin skill tools: {skill_names}")
+        # Remove MCP tools that have been replaced by skills.
+        # MCP tools have a server name prefix (e.g. "storyline_load_media"),
+        # so we strip the prefix before comparing with skill names.
+        server_prefix = f"{cfg.local_mcp_server.server_name}_"
+        def _mcp_tool_replaced(t) -> bool:
+            name = t.name
+            if name.startswith(server_prefix):
+                name = name[len(server_prefix):]
+            return name in skill_names
+        tools = [t for t in tools if not _mcp_tool_replaced(t)]
+        tools.extend(builtin_skill_tools)
+
     node_manager = NodeManager(tools)
 
     # 4) Use LangChain's agent runtime to handle the multi-turn tool calling loop
     agent = create_agent(
         model=llm,
         tools=tools+skills,
-        middleware=[log_tool_request, handle_tool_errors],
+        middleware=[log_tool_request, handle_skill_context, handle_tool_errors],
         store=store,
         context_schema=ClientContext,
     )

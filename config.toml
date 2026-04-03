@@ -18,6 +18,9 @@ timeout = 30.0 # 单位：秒
 temperature = 0.1
 max_retries = 2
 
+[llm.extra_body]
+enable_thinking = false
+
 [vlm]
 model = "qwen3.5-plus"
 base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"

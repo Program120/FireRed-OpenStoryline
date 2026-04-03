@@ -32,7 +32,7 @@ def build_default_dag() -> TaskDAG:
         "transition_rec",
         "text_rec",
         "plan_timeline",
-        "render",
+        "render_video",
     ]
 
     # Edges derived from NodeMeta.require_prior_kind across all core nodes.
@@ -93,8 +93,8 @@ def build_default_dag() -> TaskDAG:
         DAGEdge(source="text_rec", target="plan_timeline"),
 
         # render requires plan_timeline (+ load_media for media files)
-        DAGEdge(source="plan_timeline", target="render"),
-        DAGEdge(source="load_media", target="render"),
+        DAGEdge(source="plan_timeline", target="render_video"),
+        DAGEdge(source="load_media", target="render_video"),
     ]
 
     return TaskDAG(nodes=node_kinds, edges=edges)

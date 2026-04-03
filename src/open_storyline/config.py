@@ -2,7 +2,7 @@
 from __future__ import annotations
 import os
 from pathlib import Path
-from typing import Any, Optional, Literal, List
+from typing import Any, Dict, Optional, Literal, List
 import time
 
 try:
@@ -96,6 +96,7 @@ class LLMConfig(ConfigBaseModel):
     timeout: float = 30.0
     temperature: Optional[float] = None
     max_retries: int = 2
+    extra_body: Optional[Dict[str, Any]] = None  # e.g. {"enable_thinking": false}
 
 
 class VLMConfig(ConfigBaseModel):
