@@ -57,6 +57,16 @@ CREATE TABLE IF NOT EXISTS tool_logs (
     created_at REAL NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS chat_states (
+    session_id     TEXT PRIMARY KEY,
+    history_json   TEXT NOT NULL DEFAULT '[]',
+    lang           TEXT NOT NULL DEFAULT 'zh',
+    chat_model_key TEXT NOT NULL DEFAULT '',
+    vlm_model_key  TEXT NOT NULL DEFAULT '',
+    updated_at     REAL NOT NULL,
+    FOREIGN KEY (session_id) REFERENCES sessions(session_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status);
 CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at);
 CREATE INDEX IF NOT EXISTS idx_tool_logs_session ON tool_logs(session_id, tool_call_id);
@@ -223,6 +233,49 @@ class SessionDB:
         )
         row = cur.fetchone()
         return row["profile_json"] if row else None
+
+    # ── chat state persistence ──────────────────────────────────
+
+    def save_chat_state(
+        self,
+        session_id: str,
+        history: list,
+        lang: str = "zh",
+        chat_model_key: str = "",
+        vlm_model_key: str = "",
+    ) -> None:
+        """Persist chat history and session preferences."""
+        now = time.time()
+        history_json = json.dumps(history, ensure_ascii=False, default=str)
+        conn = self._get_conn()
+        conn.execute(
+            """
+            INSERT INTO chat_states (session_id, history_json, lang, chat_model_key, vlm_model_key, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(session_id) DO UPDATE SET
+                history_json   = excluded.history_json,
+                lang           = excluded.lang,
+                chat_model_key = excluded.chat_model_key,
+                vlm_model_key  = excluded.vlm_model_key,
+                updated_at     = excluded.updated_at
+            """,
+            (session_id, history_json, lang, chat_model_key, vlm_model_key, now),
+        )
+        conn.commit()
+
+    def load_chat_state(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """Load persisted chat state, or None if not found."""
+        conn = self._get_conn()
+        cur = conn.execute(
+            "SELECT * FROM chat_states WHERE session_id = ?",
+            (session_id,),
+        )
+        row = cur.fetchone()
+        if row is None:
+            return None
+        result = dict(row)
+        result["history"] = json.loads(result.pop("history_json"))
+        return result
 
     # ── tool log persistence ─────────────────────────────────────
 

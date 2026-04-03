@@ -1572,6 +1572,22 @@ class SessionStore:
         async with self._lock:
             return self._sessions.get(sid)
 
+    async def restore(self, sid: str, sdb: "SessionDB") -> Optional[ChatSession]:
+        """Try to restore a session from the database."""
+        chat_state = sdb.load_chat_state(sid)
+        if chat_state is None:
+            return None
+        sess = ChatSession(sid, self.cfg)
+        sess.history = chat_state.get("history", [])
+        sess.lang = chat_state.get("lang", "zh")
+        if chat_state.get("chat_model_key"):
+            sess.chat_model_key = chat_state["chat_model_key"]
+        if chat_state.get("vlm_model_key"):
+            sess.vlm_model_key = chat_state["vlm_model_key"]
+        async with self._lock:
+            self._sessions[sid] = sess
+        return sess
+
     async def get_or_404(self, sid: str) -> ChatSession:
         sess = await self.get(sid)
         if not sess:
@@ -1818,13 +1834,22 @@ async def get_ai_transition_ui_schema():
 async def create_session():
     store: SessionStore = app.state.sessions
     sess = await store.create()
+    sdb: SessionDB = app.state.session_db
+    sdb.create_session(sess.session_id, "default")
+    sdb.save_chat_state(sess.session_id, sess.history, sess.lang)
     return JSONResponse(sess.snapshot())
 
 
 @api.get("/sessions/{session_id}")
 async def get_session(session_id: str):
     store: SessionStore = app.state.sessions
-    sess = await store.get_or_404(session_id)
+    sess = await store.get(session_id)
+    if sess is None:
+        # Try restoring from DB (survives server restarts)
+        sdb: SessionDB = app.state.session_db
+        sess = await store.restore(session_id, sdb)
+    if sess is None:
+        raise HTTPException(status_code=404, detail="session not found")
     return JSONResponse(sess.snapshot())
 
 
@@ -2990,6 +3015,16 @@ async def ws_chat(ws: WebSocket, session_id: str):
 
                                         if new_messages:
                                             sess.lc_messages.extend(new_messages)
+
+                                        # Persist chat state to DB
+                                        try:
+                                            sdb: SessionDB = app.state.session_db
+                                            sdb.save_chat_state(
+                                                sess.session_id, sess.history, sess.lang,
+                                                sess.chat_model_key, sess.vlm_model_key,
+                                            )
+                                        except Exception:
+                                            pass
 
                                         await emit_turn_event("assistant.end", {"text": final_text})
                                         break

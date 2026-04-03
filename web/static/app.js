@@ -2514,8 +2514,9 @@ class App {
     this.sessionHistory = this._loadSessionHistory();
     this._renderSessionHistory();
 
-    // 复用 localStorage 当前会话；如果失效就创建新 session
-    const saved = localStorage.getItem(SESSION_ID_KEY);
+    // Restore session: URL hash > localStorage > new session
+    const hashSid = (window.location.hash || "").replace(/^#\/?/, "").trim();
+    const saved = hashSid || localStorage.getItem(SESSION_ID_KEY);
     if (saved) {
       try {
         const snap = await this.api.getSession(saved);
@@ -2698,6 +2699,13 @@ class App {
     this.applySnapshotLimits(snapshot);
     this.applySnapshotModels(snapshot);
     localStorage.setItem(SESSION_ID_KEY, sid);
+
+    // Update URL hash so sessions are bookmarkable
+    if (window.history && window.history.replaceState) {
+      window.history.replaceState(null, "", `#${sid}`);
+    } else {
+      window.location.hash = sid;
+    }
 
     this._upsertSessionHistoryFromSnapshot(sid, snapshot);
     this._renderSessionHistory(sid);

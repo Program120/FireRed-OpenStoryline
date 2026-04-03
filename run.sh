@@ -15,7 +15,8 @@ MCP_PID=$!
 
 uvicorn agent_fastapi:app \
   --host "$HOST" \
-  --port "$PORT" >> "$LOG_DIR/server.log" 2>&1 &
+  --port "$PORT" \
+  --log-level debug >> "$LOG_DIR/server.log" 2>&1 &
 WEB_PID=$!
 
 echo "MCP  server started (PID=$MCP_PID) → $LOG_DIR/mcp.log"
