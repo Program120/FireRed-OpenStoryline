@@ -259,10 +259,65 @@ class DashScopeVisionClient(BaseVisionClient):
         headers["X-DashScope-Async"] = "enable"
         return headers
 
+    def _upload_data_url(self, data_url: str) -> str:
+        """Upload a data URI to DashScope and return the OSS URL.
+
+        DashScope's image2video API does not accept data URIs directly;
+        images must be uploaded first via the /uploads endpoint.
+        """
+        if not data_url or not data_url.startswith("data:"):
+            return data_url
+
+        # Parse data URI: data:<mime>;base64,<payload>
+        header, payload = data_url.split(",", 1)
+        mime_type = header.split(":")[1].split(";")[0]
+        ext = mimetypes.guess_extension(mime_type) or ".jpg"
+        raw_bytes = base64.b64decode(payload)
+
+        # Get upload policy
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        policy_resp = requests.get(
+            f"{self.BASE_URL}/uploads",
+            headers=headers,
+            params={"action": "getPolicy", "model": "wanx2.1-kf2v-plus"},
+        )
+        policy_resp.raise_for_status()
+        policy = policy_resp.json().get("data", {})
+
+        # Upload to OSS
+        file_name = f"frame_{id(data_url)}{ext}"
+        oss_key = f"{policy['upload_dir']}/{file_name}"
+        files = {"file": (file_name, raw_bytes, mime_type)}
+        form_data = {
+            "OSSAccessKeyId": policy["oss_access_key_id"],
+            "Signature": policy["signature"],
+            "policy": policy["policy"],
+            "key": oss_key,
+            "x-oss-object-acl": policy.get("x_oss_object_acl", "default"),
+            "x-oss-forbid-overwrite": "true",
+            "success_action_status": "200",
+        }
+        if policy.get("x_oss_credential"):
+            form_data["x-oss-credential"] = policy["x_oss_credential"]
+        if policy.get("x_oss_date"):
+            form_data["x-oss-date"] = policy["x_oss_date"]
+        if policy.get("x_oss_signature_version"):
+            form_data["x-oss-signature-version"] = policy["x_oss_signature_version"]
+
+        upload_resp = requests.post(policy["upload_host"], data=form_data, files=files)
+        upload_resp.raise_for_status()
+        return f"oss://{policy['upload_host'].split('//')[1].split('.')[0]}/{oss_key}"
+
     def _get_endpoint(self, task_type: str) -> str:
         return f"{self.BASE_URL}/services/aigc/image2video/video-synthesis"
 
     def _build_payload(self, prompt, model, first_frame, last_frame, resolution, duration, prompt_optimizer, **kwargs):
+        # DashScope requires HTTP/OSS URLs, not data URIs
+        if first_frame and first_frame.startswith("data:"):
+            first_frame = self._upload_data_url(first_frame)
+        if last_frame and last_frame.startswith("data:"):
+            last_frame = self._upload_data_url(last_frame)
+
         return {
             "model": model,
             "input": {

@@ -1584,9 +1584,48 @@ class SessionStore:
             sess.chat_model_key = chat_state["chat_model_key"]
         if chat_state.get("vlm_model_key"):
             sess.vlm_model_key = chat_state["vlm_model_key"]
+
+        # Rebuild load_media from history attachments + disk files
+        await self._rebuild_media(sess)
+
         async with self._lock:
             self._sessions[sid] = sess
         return sess
+
+    async def _rebuild_media(self, sess: ChatSession) -> None:
+        """Scan history attachments and rebuild load_media from disk."""
+        media_dir = sess.media_store.media_dir
+        thumbs_dir = sess.media_store.thumbs_dir
+
+        for item in sess.history:
+            if item.get("role") != "user":
+                continue
+            for att in item.get("attachments") or []:
+                mid = att.get("id")
+                if not mid or mid in sess.load_media:
+                    continue
+                name = att.get("name", "")
+                kind = att.get("kind", "unknown")
+                # Find the file on disk by scanning media_dir
+                file_path = None
+                for f in os.listdir(media_dir):
+                    full = os.path.join(media_dir, f)
+                    if os.path.isfile(full) and not f.startswith("."):
+                        file_path = full
+                        break  # Take first media file found
+                # Check for a matching thumb
+                thumb_path = os.path.join(thumbs_dir, f"{mid}.jpg")
+                if not os.path.exists(thumb_path):
+                    thumb_path = None
+                if file_path:
+                    sess.load_media[mid] = MediaMeta(
+                        id=mid,
+                        name=name,
+                        kind=kind,
+                        path=os.path.abspath(file_path),
+                        thumb_path=os.path.abspath(thumb_path) if thumb_path else None,
+                        ts=item.get("ts", 0),
+                    )
 
     async def get_or_404(self, sid: str) -> ChatSession:
         sess = await self.get(sid)

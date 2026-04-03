@@ -83,7 +83,7 @@ class GenerateAITransitionNode(BaseNode):
         description="Generate transition videos: Create transition videos for grouped video clips, generating an appropriate transition from the last frame of the previous clip to the first frame of the next clip based on user requirements.",
         node_id="generate_ai_transition",
         node_kind="generate_ai_transition",
-        require_prior_kind=["split_shots", "group_clips"],
+        require_prior_kind=["split_shots", "group_clips", "speech_rough_cut"],
         default_require_prior_kind=['group_clips'],
         next_available_node=["generate_script"],
     )
@@ -105,8 +105,10 @@ class GenerateAITransitionNode(BaseNode):
     async def process(self, node_state: NodeState, inputs: Dict[str, Any]) -> Any:
         group_clips = inputs.get("group_clips", {})
         split_shots = inputs.get("split_shots", {})
+        speech_rough_cut = inputs.get("speech_rough_cut", {})
         groups = group_clips.get("groups", [])
-        clips = split_shots.get('clips', [])
+        # Prefer rough-cut clips (profanity removed) over original split_shots
+        clips = speech_rough_cut.get('clips') or split_shots.get('clips', [])
 
         runtime_cfg = self._resolve_ai_transition_runtime_cfg(inputs)
         provider = runtime_cfg["provider"]
