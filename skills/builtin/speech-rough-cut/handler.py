@@ -124,6 +124,10 @@ class Handler(SkillHandler):
             if ranges and video_end_ms > 0 and video_end_ms - ranges[-1]["end"] < 2000:
                 ranges[-1]["end"] = video_end_ms
 
+            # Log ranges for debugging
+            for ri, rng in enumerate(ranges):
+                await ctx.log("debug", f"Cut range [{ri}]: [{rng['start']}-{rng['end']}] dur={rng['end']-rng['start']}ms")
+
             segments = []
             for ci, rng in enumerate(ranges):
                 seg = cut_video_segment_with_ffmpeg(
@@ -303,21 +307,12 @@ class Handler(SkillHandler):
                         f"LLM原始输出:\n{raw}\n\n解析后res:\n{json.dumps(res_before, ensure_ascii=False)}",
                     )
 
-                    # Correct timestamps using original ASR timestamp array
-                    res = _correct_timestamps(res_before, sentence)
-                    # If LLM split the sentence (multiple segments), mark gaps
-                    # between them as intentional deletions so _group_sentences
-                    # won't merge them back together.
-                    if len(res) > 1:
-                        marked: list[dict] = []
-                        for seg_idx, seg in enumerate(res):
-                            marked.append(seg)
-                            if seg_idx < len(res) - 1:
-                                # Insert a force-break marker between split segments
-                                marked.append({"_force_break": True})
-                        results[i] = marked
-                    else:
-                        results[i] = res
+                    # Instead of trusting LLM timestamps or text-matching,
+                    # rebuild segments directly from the timestamp array.
+                    # Compare LLM's kept text vs original to find deleted chars,
+                    # then build precise segments from char-level timestamps.
+                    res = _rebuild_segments_from_deletion(res_before, sentence)
+                    results[i] = res
 
                     action = "删除" if not res else f"保留 ({len(res)} 段)"
                     await ctx.log(
@@ -366,6 +361,140 @@ class Handler(SkillHandler):
 # ======================================================================
 # Pure functions (no state)
 # ======================================================================
+
+
+def _rebuild_segments_from_deletion(
+    llm_res: list[dict], original_sentence: dict
+) -> list[dict]:
+    """
+    Rebuild precise segments by finding which characters LLM deleted.
+
+    Instead of trusting LLM timestamps (which are often hallucinated) or
+    doing fuzzy text matching, we:
+    1. Concatenate all text from ``llm_res`` to get the "kept text"
+    2. Compare kept text with the original to find deleted character positions
+    3. Build segments from the timestamp array, splitting at deletion gaps
+    4. Insert ``_force_break`` markers between segments from the same sentence
+
+    This is the only reliable approach because LLMs are inconsistent about
+    how they split text and compute timestamps.
+    """
+    import logging as _log
+    logger = _log.getLogger(__name__)
+
+    if not llm_res:
+        return []  # LLM wants to delete the entire sentence
+
+    timestamps = original_sentence.get("timestamp", [])
+    full_text = original_sentence.get("text", "")
+    orig_start = original_sentence.get("start", 0)
+    orig_end = original_sentence.get("end", 0)
+
+    if not timestamps or not full_text:
+        # No timestamp data — fall back to LLM values
+        return llm_res
+
+    # Build kept text from LLM result
+    kept_text = "".join(seg.get("text", "") for seg in llm_res).strip()
+
+    # If LLM kept everything unchanged, return single segment
+    import re
+    clean_kept = re.sub(r'[，。！？、；：""''（）\s]', '', kept_text)
+    clean_orig = re.sub(r'[，。！？、；：""''（）\s]', '', full_text)
+
+    if clean_kept == clean_orig:
+        return [{"text": full_text, "start": orig_start, "end": orig_end}]
+
+    # Find which characters in the original are kept vs deleted.
+    # Use a simple approach: for each char in original (ignoring punctuation),
+    # check if it appears in kept_text in order.
+    kept_mask = [False] * len(full_text)  # True = keep this char
+    ki = 0  # pointer into clean_kept
+    for oi, ch in enumerate(full_text):
+        clean_ch = re.sub(r'[，。！？、；：""''（）\s]', '', ch)
+        if not clean_ch:
+            # Punctuation: keep if adjacent to kept chars (decided later)
+            continue
+        if ki < len(clean_kept) and clean_ch == clean_kept[ki]:
+            kept_mask[oi] = True
+            ki += 1
+        # else: this char was deleted
+
+    # Fill in punctuation: keep if next non-punct char is kept
+    for oi in range(len(full_text)):
+        ch = full_text[oi]
+        if re.match(r'[，。！？、；：""''（）\s]', ch):
+            # Look ahead for the next non-punct char
+            for ni in range(oi + 1, len(full_text)):
+                if not re.match(r'[，。！？、；：""''（）\s]', full_text[ni]):
+                    kept_mask[oi] = kept_mask[ni]
+                    break
+            else:
+                # Trailing punctuation: keep if previous char is kept
+                if oi > 0:
+                    kept_mask[oi] = kept_mask[oi - 1]
+
+    logger.info(
+        f"[_rebuild] orig=\"{full_text}\" kept=\"{kept_text}\" "
+        f"mask={''.join('K' if k else 'D' for k in kept_mask)}"
+    )
+
+    # Build segments from consecutive kept chars using timestamps
+    # timestamps[i] corresponds to full_text[i] (for non-punct chars)
+    # But timestamps array may be shorter than full_text (punct chars don't have timestamps)
+    segments: list[dict] = []
+    seg_chars: list[str] = []
+    seg_start: int | None = None
+    seg_end: int = 0
+
+    # Map each full_text char to its timestamp index
+    ts_idx = 0
+    for oi, ch in enumerate(full_text):
+        is_punct = bool(re.match(r'[，。！？、；：""''（）\s]', ch))
+
+        if kept_mask[oi]:
+            if not is_punct and ts_idx < len(timestamps):
+                ts = timestamps[ts_idx]
+                if seg_start is None:
+                    seg_start = ts[0]
+                seg_end = ts[1]
+            seg_chars.append(ch)
+        else:
+            # Char deleted — if we have an in-progress segment, close it
+            if seg_chars and seg_start is not None:
+                segments.append({
+                    "text": "".join(seg_chars),
+                    "start": seg_start,
+                    "end": seg_end,
+                })
+                # Add force break between segments from the same sentence
+                segments.append({"_force_break": True})
+                seg_chars = []
+                seg_start = None
+
+        if not is_punct:
+            ts_idx += 1
+
+    # Close last segment
+    if seg_chars and seg_start is not None:
+        segments.append({
+            "text": "".join(seg_chars),
+            "start": seg_start,
+            "end": seg_end,
+        })
+
+    # Remove trailing _force_break
+    if segments and segments[-1].get("_force_break"):
+        segments.pop()
+
+    if segments:
+        logger.info(
+            f"[_rebuild] result: {[(s.get('text','<brk>'), s.get('start'), s.get('end')) for s in segments]}"
+        )
+    else:
+        logger.info("[_rebuild] result: entire sentence deleted")
+
+    return segments if segments else []
 
 
 def _correct_timestamps(res: list[dict], original_sentence: dict) -> list[dict]:
