@@ -70,6 +70,7 @@ transnet_device = "cpu"
 [understand_clips]
 sample_fps = 2.0                 # 每秒抽几帧 / Frames sampled per second
 max_frames = 64                  # 单clip抽帧上限兜底，避免长视频爆 token / Max frames per clip limit to prevent token overflow
+max_concurrent = 4               # VLM 并发数上限 / Max concurrent VLM calls for clip understanding
 
 # ============= 镜头分组 / Clip Grouping =============
 [group_clips]

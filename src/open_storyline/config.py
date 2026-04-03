@@ -146,6 +146,7 @@ class SplitShotsConfig(ConfigBaseModel):
 class UnderstandClipsConfig(ConfigBaseModel):
     sample_fps: float = 2.0
     max_frames: int = 64
+    max_concurrent: int = Field(default=4, ge=1, description="Max concurrent VLM calls for clip understanding")
 
 class GroupClipsConfig(ConfigBaseModel):
     base_max_tokens: int = Field(default=4096, ge=256, description="Base max output token budget for group_clips")

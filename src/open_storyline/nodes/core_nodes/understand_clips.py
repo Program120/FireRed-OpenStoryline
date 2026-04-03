@@ -60,10 +60,7 @@ class UnderstandClipsNode(BaseNode):
         system_prompt = get_prompt("understand_clips.system_detail", lang=node_state.lang)
         user_prompt = get_prompt("understand_clips.user_detail", lang=node_state.lang)
 
-
-        clip_captions: list[dict[str, Any]] = []
-
-        for clip in clips or []:
+        async def _understand_one_clip(clip: dict) -> dict[str, Any]:
             clip_id = str(clip.get("clip_id", "") or "").strip() or "(unknown_clip)"
             kind = str(clip.get("kind", "") or "").strip().lower()
             src = clip.get("source_ref") or {}
@@ -71,49 +68,34 @@ class UnderstandClipsNode(BaseNode):
             media_id = str(src.get("media_id", "") or "")
             media_item = load_media.get(media_id)
 
-            out_item: dict[str, Any] = {
-                "clip_id": clip_id,
-            }
-            
+            out_item: dict[str, Any] = {"clip_id": clip_id}
+
             if not media_item:
                 out_item["caption"] = f"Error: Media not found for media_id={media_id}"
-                clip_captions.append(out_item)
-                continue
+                return out_item
 
             path = str(media_item.get("path", "") or "").strip()
             if not path:
                 out_item["caption"] = f"Error: No path specified for media_id={media_id}"
-                clip_captions.append(out_item)
-                continue
+                return out_item
 
-            # 组装 media
             media: list[Any] = []
-
             if kind == "image":
                 media = [{"path": path}]
-
             elif kind == "video":
                 in_sec = _safe_float(src.get("start", 0) / 1000.0, 0.0)
-
                 if src.get("end") is not None:
                     out_sec = _safe_float(src.get("end", 0) / 1000.0, in_sec)
                 else:
                     dur = _safe_float(src.get("duration", 0.0), 0.0)
                     out_sec = in_sec + max(0.0, dur)
-                
                 if out_sec <= in_sec:
                     out_sec = in_sec + 0.1
-
-                media = [{
-                    "path": path,
-                    "in_sec": in_sec,
-                    "out_sec": out_sec,
-                }]
+                media = [{"path": path, "in_sec": in_sec, "out_sec": out_sec}]
             else:
                 out_item["caption"] = f"Error: Clip kind not supported: {kind}"
-                clip_captions.append(out_item)
-                continue
-    
+                return out_item
+
             max_retries = 2
             raw = None
             last_exc: Exception | None = None
@@ -134,35 +116,40 @@ class UnderstandClipsNode(BaseNode):
                         break
                 except Exception as e:
                     last_exc = e
-
                 if attempt < max_retries:
                     await asyncio.sleep(0.3 * (attempt + 1))
 
             if raw is None:
                 out_item["caption"] = "Error: VLM request failed"
-                try:
-                    raw_score = obj.get("aes_score")
-                    out_item["aes_score"] = float(str(raw_score).strip())
-                except (ValueError, TypeError, AttributeError):
-                    # If the conversion fails (such as "abc", None, "nan", etc.), assign the value -1.0
-                    out_item["aes_score"] = -1.0
+                out_item["aes_score"] = -1.0
                 node_state.node_summary.add_error(repr(last_exc))
-                clip_captions.append(out_item)
-                continue
+                return out_item
 
             try:
                 obj = parse_json_dict(raw)
-            except:
+            except Exception:
                 text = (raw or "").strip()
                 out_item["caption"] = text if text else "Error: Unable to parse model output"
-                clip_captions.append(out_item)
-                continue
+                return out_item
 
             out_item["caption"] = str(obj.get("caption", "") or "").strip()
             out_item["source_ref"] = {
                 "media_id": clip.get("source_ref", {}).get("media_id", ""),
             }
-            clip_captions.append(out_item)
+            return out_item
+
+        # Run clip understanding with bounded concurrency
+        max_concurrent = getattr(self.server_cfg.understand_clips, 'max_concurrent', 4)
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        async def _bounded(clip):
+            async with semaphore:
+                return await _understand_one_clip(clip)
+
+        clip_captions = await asyncio.gather(*[
+            _bounded(clip) for clip in (clips or [])
+        ])
+        clip_captions = list(clip_captions)
 
         desc_lines: list[str] = []
         for desc in clip_captions:

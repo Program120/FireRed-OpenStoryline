@@ -171,9 +171,12 @@ class GenerateAITransitionNode(BaseNode):
                 next_group = groups[i + 1]
                 next_group_clip_ids = [clip_id for clip_id in next_group.get("clip_ids", []) if clip_id in clip_map]
                 if next_group_clip_ids:
+                    # Use the LAST clip of the next group as the "to" reference,
+                    # because the first clip may still belong to the previous scene
+                    # (uniform 5s splitting doesn't align with actual scene changes).
                     transition_result = await self._build_transition_clip(
                         from_clip_id=valid_group_clip_ids[-1],
-                        to_clip_id=next_group_clip_ids[0],
+                        to_clip_id=next_group_clip_ids[-1],
                         transition_index=transition_index,
                         **transition_context,
                     )
@@ -273,7 +276,10 @@ class GenerateAITransitionNode(BaseNode):
         next_frames = self._load_clip(next_clip.get("path"))
 
         first_frame = prev_frames[-1]
-        last_frame = next_frames[0]
+        # Use a frame from the latter part of the target clip (75% mark).
+        # Combined with using the last clip of the next group as to_clip,
+        # this ensures the target frame truly represents the new scene.
+        last_frame = next_frames[min(len(next_frames) * 3 // 4, len(next_frames) - 1)]
 
         aligned_first_frame, aligned_last_frame, _, _ = self._preprocess_first_last_frame(
             first_frame,
