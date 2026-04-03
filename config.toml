@@ -106,8 +106,8 @@ api_key = ""
 [generate_ai_transition]
 
 [generate_ai_transition.providers.dashscope] # 阿里通义万相 / Alibaba’s Tongyi Wanxiang (Wan) video model
-model_name = ""
-api_key = ""
+model_name = "${DASHSCOPE_TRANSITION_MODEL}"
+api_key = "${DASHSCOPE_API_KEY}"
 
 [generate_ai_transition.providers.minimax] # Minimax 海螺 / Hailuo
 model_name = ""
