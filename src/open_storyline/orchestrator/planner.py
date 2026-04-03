@@ -81,7 +81,11 @@ _INTENT_RULES: List[Tuple[re.Pattern, List[str]]] = [
     # Subtitle / text style (only affects text_rec, not script content)
     (re.compile(r"(?:换|改|调).*(?:字体|字号|字色|字幕样式|文字样式|文字颜色)"), ["text_rec"]),
 
-    # Transition style
+    # AI transition (must be before simple transition rule)
+    (re.compile(r"(?:AI|ai|Ai).*(?:转场|过渡)"), ["generate_ai_transition"]),
+    (re.compile(r"(?:转场|过渡).*(?:AI|ai|Ai)"), ["generate_ai_transition"]),
+
+    # Transition style (simple fade/dissolve)
     (re.compile(r"(?:换|改|加|调).*(?:转场|过渡|切换效果)"), ["transition_rec"]),
 
     # Color / LUT (future V2, but add recognition now)
@@ -100,13 +104,17 @@ class Planner:
     def __init__(self, dag: TaskDAG) -> None:
         self.dag = dag
 
-    def recognise_dirty_kinds(self, user_text: str) -> Optional[List[str]]:
+    def recognise_dirty_kinds(
+        self, user_text: str, project_state: Optional["ProjectState"] = None,
+    ) -> Optional[List[str]]:
         """
         Return the list of node_kinds that should be marked dirty based
         on the user's editing instruction.
 
         Returns None for non-actionable messages (confirmations, greetings).
-        Returns ["load_media"] to trigger full pipeline if no pattern matches.
+        Returns ["load_media"] to trigger full pipeline ONLY on first run.
+        Returns [] (empty) when no rule matches but pipeline has already run,
+        so the Agent (LLM) handles the intent directly.
         """
         # Check for non-actionable messages first
         text_stripped = user_text.strip()
@@ -119,6 +127,18 @@ class Planner:
             if pattern.search(user_text):
                 logger.info(f"[Planner] Matched intent rule → dirty kinds: {kinds}")
                 return kinds
+
+        # No rule matched — check if pipeline has already run before.
+        # If yes, let the Agent handle it (don't re-run everything).
+        if project_state is not None:
+            has_prior_run = any(
+                snap.status == NodeStatus.COMPLETED
+                for snap in project_state.nodes.values()
+            )
+            if has_prior_run:
+                logger.info("[Planner] No intent matched but pipeline already ran → skip V1, let Agent handle")
+                return None
+
         logger.info("[Planner] No intent matched → full pipeline from load_media")
         return ["load_media"]
 
@@ -133,7 +153,7 @@ class Planner:
         Returns a list of layers (each layer = list of node_kinds that can
         execute in parallel).
         """
-        dirty_kinds = self.recognise_dirty_kinds(user_text)
+        dirty_kinds = self.recognise_dirty_kinds(user_text, project_state)
 
         # Non-actionable message → no nodes to execute
         if dirty_kinds is None:

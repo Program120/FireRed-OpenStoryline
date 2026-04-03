@@ -1317,6 +1317,10 @@ class ChatSession:
             pexels_api_key = _get_default_pexels_api_key(self.cfg)  # from config.toml
 
         self.client_context.pexels_api_key = (pexels_api_key or None)
+        # Sync tracked media paths so load_media only picks up explicitly uploaded files
+        self.client_context.media_file_paths = [
+            meta.path for meta in self.load_media.values() if meta.path
+        ]
 
     # ---- DTO / public mapping ----
     def public_media(self, meta: MediaMeta) -> Dict[str, Any]:

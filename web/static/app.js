@@ -3958,32 +3958,8 @@ class App {
   }
 
   async newSession() {
-    // 如果当前会话仍为空（未输入任何内容），再次点击“创建新对话”不新建 session：
-    // - 保持在当前界面
-    // - 仅刷新时间（让它被视为最新的新对话）
-    if (this._isCurrentSessionBlank()) {
-      this._touchBlankSessionAsNewChat(this.sessionId);
-      this._flashSessionHistoryItem(this.sessionId);
-      return;
-    }
-
-    // 当前不是“新对话”：如果历史中已经存在一个空会话，则直接切换过去，而不是创建第二个“新对话”
-    const blankId = this._findAnyBlankSessionId();
-    if (blankId && blankId !== this.sessionId) {
-      try {
-        const snap = await this.api.getSession(blankId);
-        await this.useSession(blankId, snap);
-        return;
-      } catch (e) {
-        console.warn("[session] failed to reuse blank session, will create new one:", e);
-        // 仅当明确 404 时才清理本地记录；其它错误不要误删
-        if (e && e.status === 404) {
-          this._removeSessionFromHistory(blankId);
-          this._renderSessionHistory(this.sessionId);
-        }
-      }
-    }
-
+    // Always create a brand-new session with a clean media directory.
+    // Never reuse old sessions — stale media files cause duplicate detection.
     const snap = await this.api.createSession();
     await this.useSession(snap.session_id, snap);
   }

@@ -83,7 +83,7 @@ class GenerateAITransitionNode(BaseNode):
         description="Generate transition videos: Create transition videos for grouped video clips, generating an appropriate transition from the last frame of the previous clip to the first frame of the next clip based on user requirements.",
         node_id="generate_ai_transition",
         node_kind="generate_ai_transition",
-        require_prior_kind=["split_shots", "group_clips", "speech_rough_cut"],
+        require_prior_kind=["split_shots", "group_clips"],
         default_require_prior_kind=['group_clips'],
         next_available_node=["generate_script"],
     )
@@ -115,13 +115,17 @@ class GenerateAITransitionNode(BaseNode):
         transition_duration = inputs.get("duration")
         resolution = inputs.get("resolution")
         user_request = inputs.get("user_request", "以一镜到底的方式拍摄，场景丝滑过渡")
+        max_transitions = inputs.get("max_transitions")  # None = unlimited
 
         # Build clip_map from both sources so group_clips can reference either set of IDs.
         # Rough-cut clips take precedence (same ID overrides split_shots version).
         clip_map = {clip['clip_id']: clip for clip in split_shots.get('clips', [])}
         for clip in speech_rough_cut.get('clips', []):
             clip_map[clip['clip_id']] = clip
-        total_transitions = max(sum(len(group.get("clip_ids", [])) for group in groups) - 1, 0)
+        # Transitions only at group boundaries (not within groups)
+        total_transitions = max(len(groups) - 1, 0)
+        if max_transitions is not None:
+            total_transitions = min(total_transitions, max_transitions)
 
         await node_state.mcp_ctx.report_progress(
             0,
@@ -155,27 +159,15 @@ class GenerateAITransitionNode(BaseNode):
                     f"Clips <{missing_clip_ids}> not found in split_shots; they will be skipped in generate_ai_transition."
                 )
 
-            new_group_clip_ids = []
+            def _reached_limit():
+                return max_transitions is not None and len(transition_info) >= max_transitions
+
+            new_group_clip_ids = list(valid_group_clip_ids)
             transition_total_duration_sec = 0.0
-            for clip_index, clip_id in enumerate(valid_group_clip_ids):
-                new_group_clip_ids.append(clip_id)
 
-                if clip_index < len(valid_group_clip_ids) - 1:
-                    next_clip_id = valid_group_clip_ids[clip_index + 1]
-                    transition_result = await self._build_transition_clip(
-                        from_clip_id=clip_id,
-                        to_clip_id=next_clip_id,
-                        transition_index=transition_index,
-                        **transition_context,
-                    )
-                    if transition_result:
-                        transition_clip_id, transition_payload = transition_result
-                        transition_info[transition_clip_id] = transition_payload
-                        transition_index += 1
-                        new_group_clip_ids.append(transition_clip_id)
-                        transition_total_duration_sec += self._transition_payload_duration_seconds(transition_payload)
-
-            if i < len(groups) - 1 and valid_group_clip_ids:
+            # Only generate transitions at GROUP BOUNDARIES (scene changes),
+            # not between every clip within a group (same scene).
+            if i < len(groups) - 1 and valid_group_clip_ids and not _reached_limit():
                 next_group = groups[i + 1]
                 next_group_clip_ids = [clip_id for clip_id in next_group.get("clip_ids", []) if clip_id in clip_map]
                 if next_group_clip_ids:

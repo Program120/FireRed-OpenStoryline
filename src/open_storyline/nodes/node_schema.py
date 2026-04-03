@@ -413,6 +413,19 @@ class GenerateAITransitionInput(BaseInput):
         ),
     ] = None
 
+    max_transitions: Annotated[
+        Optional[int],
+        Field(
+            default=None,
+            description=(
+                "Maximum number of AI transitions to generate. "
+                "When set, only the first N inter-group boundaries get AI transitions. "
+                "Use 1 if the user asks for 'just one transition'. "
+                "If omitted or None, transitions are generated for ALL adjacent clip pairs."
+            ),
+        ),
+    ] = None
+
 class RecommendTextInput(BaseInput):
     mode: Literal["auto", "skip", "default"] = Field(
         default="auto",

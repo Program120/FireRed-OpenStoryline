@@ -117,10 +117,19 @@ class ToolInterceptor:
                     project_media_root = Path(client_cfg.project.media_dir).resolve()
                 except Exception:
                     project_media_root = None
-                for file_name in os.listdir(media_dir):
-                    path = media_dir / file_name
-                    if path.is_dir():
-                        continue
+
+                # Use tracked media paths if available (prevents picking up stale files
+                # from restored sessions); fall back to directory scan otherwise.
+                tracked_paths = getattr(context, 'media_file_paths', None)
+                if tracked_paths:
+                    candidate_files = [Path(p) for p in tracked_paths if Path(p).is_file()]
+                else:
+                    candidate_files = [
+                        media_dir / fn for fn in os.listdir(media_dir)
+                        if not (media_dir / fn).is_dir()
+                    ]
+
+                for path in candidate_files:
                     if inline_base64:
                         rel_path = str(path.relative_to(os.getcwd()))
                         compress_data = FileCompressor.compress_and_encode(path)

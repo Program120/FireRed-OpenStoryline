@@ -166,7 +166,7 @@ is_text_beats      = false          # 文字对齐音乐节拍 / align text with
 
 # ============= V1 编排器 / V1 Orchestrator =============
 [orchestrator]
-use_v1 = true
+use_v1 = false
 max_parallel_workers = 3
 
 # ============= V1 渲染配置 / V1 Render Config =============
