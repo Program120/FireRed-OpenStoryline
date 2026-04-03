@@ -1,7 +1,11 @@
 # /src/open_storyline/config.py
 from __future__ import annotations
 import os
+import re as _re
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 from typing import Any, Dict, Optional, Literal, List
 import time
 
@@ -284,9 +288,28 @@ class Settings(ConfigBaseModel):
     session_db: SessionDBConfig = Field(default_factory=SessionDBConfig)
 
 
+_ENV_VAR_PATTERN = _re.compile(r"\$\{([^}]+)\}")
+
+
+def _resolve_env_vars(obj: Any) -> Any:
+    """
+    Recursively walk a parsed TOML dict and replace ``${VAR_NAME}``
+    placeholders with the corresponding environment-variable value.
+    If the env var is unset, the placeholder is replaced with an empty string.
+    """
+    if isinstance(obj, str):
+        return _ENV_VAR_PATTERN.sub(lambda m: os.getenv(m.group(1), ""), obj)
+    if isinstance(obj, dict):
+        return {k: _resolve_env_vars(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_resolve_env_vars(v) for v in obj]
+    return obj
+
+
 def load_settings(config_path: str | Path) -> Settings:
     p = Path(config_path).expanduser().resolve()
     data = tomllib.loads(p.read_text(encoding="utf-8"))
+    data = _resolve_env_vars(data)
     return Settings.model_validate(data, context={"config_dir": p.parent})
 
 def default_config_path() -> str:
