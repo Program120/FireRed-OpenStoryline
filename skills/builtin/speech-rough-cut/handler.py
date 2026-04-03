@@ -439,15 +439,18 @@ def _rebuild_segments_from_deletion(
         f"mask={''.join('K' if k else 'D' for k in kept_mask)}"
     )
 
-    # Build segments from consecutive kept chars using timestamps
-    # timestamps[i] corresponds to full_text[i] (for non-punct chars)
-    # But timestamps array may be shorter than full_text (punct chars don't have timestamps)
+    # Build segments from consecutive kept chars using timestamps.
+    # Add a safety buffer (50ms) at deletion boundaries to account for
+    # ffmpeg encoding frame alignment — without this, the last ~20ms of
+    # a deleted word can leak into the adjacent kept segment.
+    DELETION_BUFFER_MS = 50
+
     segments: list[dict] = []
     seg_chars: list[str] = []
     seg_start: int | None = None
     seg_end: int = 0
+    has_deletion = False  # track whether any char was deleted
 
-    # Map each full_text char to its timestamp index
     ts_idx = 0
     for oi, ch in enumerate(full_text):
         is_punct = bool(re.match(r'[，。！？、；：""''（）\s]', ch))
@@ -456,18 +459,20 @@ def _rebuild_segments_from_deletion(
             if not is_punct and ts_idx < len(timestamps):
                 ts = timestamps[ts_idx]
                 if seg_start is None:
-                    seg_start = ts[0]
+                    # Starting a new segment after a deletion — add buffer
+                    seg_start = ts[0] + (DELETION_BUFFER_MS if has_deletion else 0)
                 seg_end = ts[1]
             seg_chars.append(ch)
         else:
+            has_deletion = True
             # Char deleted — if we have an in-progress segment, close it
             if seg_chars and seg_start is not None:
+                # Subtract buffer from end to ensure deleted audio doesn't leak
                 segments.append({
                     "text": "".join(seg_chars),
                     "start": seg_start,
-                    "end": seg_end,
+                    "end": max(seg_start, seg_end - DELETION_BUFFER_MS),
                 })
-                # Add force break between segments from the same sentence
                 segments.append({"_force_break": True})
                 seg_chars = []
                 seg_start = None
@@ -475,7 +480,7 @@ def _rebuild_segments_from_deletion(
         if not is_punct:
             ts_idx += 1
 
-    # Close last segment
+    # Close last segment (no buffer needed at the very end)
     if seg_chars and seg_start is not None:
         segments.append({
             "text": "".join(seg_chars),
