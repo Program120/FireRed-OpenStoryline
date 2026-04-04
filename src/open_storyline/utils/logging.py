@@ -58,7 +58,7 @@ def get_logger(
     # Logger config
     level = "debug"
     do_console = True
-    do_file = False
+    do_file = True
     log_dir = "logs"
     date_format = "%Y-%m-%d %H:%M:%S"
 

@@ -6,6 +6,9 @@ from open_storyline.nodes.node_schema import GroupClipsInput
 from src.open_storyline.utils.prompts import get_prompt
 from open_storyline.utils.parse_json import parse_json_dict
 from open_storyline.utils.register import NODE_REGISTRY
+from open_storyline.utils.logging import get_logger
+
+logger = get_logger("group_clips")
 
 @NODE_REGISTRY.register()
 class GroupClipsNode(BaseNode):
@@ -26,7 +29,10 @@ class GroupClipsNode(BaseNode):
         node_state: NodeState,
         inputs: Dict[str, Any],
     ) -> Any:
-        result = _make_single_group_fallback(inputs["filter_clips"].get("selected", []))
+        selected = inputs["filter_clips"].get("selected", [])
+        logger.info("[default_process] Falling back to single-group. selected=%d clips: %s",
+                    len(selected), selected)
+        result = _make_single_group_fallback(selected)
         return {
             "groups": result,
         }
@@ -36,14 +42,19 @@ class GroupClipsNode(BaseNode):
         selected_clips = inputs["filter_clips"].get("selected")
         user_request = inputs["user_request"]
 
+        logger.info("[process] Starting LLM grouping: %d clips, user_request='%s'",
+                    len(selected_clips) if selected_clips else 0, user_request)
+
         llm = node_state.llm
         clip_lookup = _build_clip_lookup(clip_captions)
 
         if not selected_clips:
+            logger.warning("[process] No selected clips, returning empty groups")
             return {"groups": []}
-        
+
         selected_clips_captions = [clip_lookup[cid] for cid in selected_clips if cid in clip_lookup]
         if not selected_clips_captions:
+            logger.warning("[process] No clip captions found for selected clips, falling back to single group")
             return {"groups": _make_single_group_fallback(selected_clips)}
 
         clip_block = _build_clips_block(selected_clips_captions)
@@ -79,6 +90,7 @@ class GroupClipsNode(BaseNode):
             if attempt > 0:
                 attempt_user_prompt = _append_compact_output_hint(user_prompt, node_state.lang)
 
+            logger.debug("[process] LLM attempt %d/%d, max_tokens=%d", attempt + 1, max_attempts, max_tokens)
             try:
                 raw = await llm.complete(
                     system_prompt=system_prompt,
@@ -89,7 +101,9 @@ class GroupClipsNode(BaseNode):
                     max_tokens=max_tokens,
                     model_preferences=None,
                 )
+                logger.debug("[process] LLM raw response (first 500 chars): %s", raw[:500] if raw else "(empty)")
             except Exception as e:
+                logger.warning("[process] LLM call failed on attempt %d: %s", attempt + 1, e)
                 last_error = e
                 continue
 
@@ -100,14 +114,20 @@ class GroupClipsNode(BaseNode):
                     groups_raw=groups_raw,
                     selected_ids_set=set(selected_clips),
                 )
+                logger.info("[process] Grouping successful: %d groups, clip distribution: %s",
+                            len(groups),
+                            [(g.get("group_id"), len(g.get("clip_ids", []))) for g in groups])
                 node_state.node_summary.info_for_user(
                     f"Grouping successful: {len(groups)} groups in total"
                 )
                 return {"groups": groups}
             except Exception as e:
+                logger.warning("[process] Parse/normalize failed on attempt %d: %s", attempt + 1, e)
                 last_error = e
                 continue
 
+        logger.error("[process] All %d attempts failed, last_error=%s. Falling back to single group.",
+                     max_attempts, last_error)
         result = _make_single_group_fallback(selected_clips)
         node_state.node_summary.info_for_user(
             f"Grouping error after {max_attempts} attempt(s): {last_error}\nUsing default strategy"

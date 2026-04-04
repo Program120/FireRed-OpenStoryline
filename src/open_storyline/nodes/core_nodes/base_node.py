@@ -299,14 +299,21 @@ class BaseNode(ABC):
     async def __call__(self, node_state: NodeState, **params) -> Dict[str, Any]:
         try:
             mode = params.get("mode", "auto")
+            node_name = getattr(getattr(self, 'meta', None), 'name', self.__class__.__name__)
+            logger.info("[%s] __call__ started | session=%s, mode=%s, param_keys=%s",
+                        node_name, node_state.session_id, mode, list(params.keys()))
+            logger.debug("[%s] __call__ full params: %s",
+                         node_name, {k: (v if not isinstance(v, str) or len(v) < 200 else v[:200] + '...') for k, v in params.items()})
 
             inputs = self.load_inputs_from_client(node_state, params.copy())
 
             parsed_inputs = self._parse_input(node_state, inputs)
 
             if mode != 'auto':
+                logger.info("[%s] Dispatching to default_process (mode=%s != 'auto')", node_name, mode)
                 outputs = await self.default_process(node_state, parsed_inputs)
             else:
+                logger.info("[%s] Dispatching to process (mode='auto')", node_name)
                 outputs = await self.process(node_state, parsed_inputs)
 
             processed_outputs = self._combine_tool_outputs(node_state, outputs)
