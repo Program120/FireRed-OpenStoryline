@@ -370,6 +370,20 @@ class GenerateAITransitionNode(BaseNode):
         # Fallback: return the whole response (old format without analysis)
         return raw.strip()
 
+    @staticmethod
+    def _extract_duration(raw: str) -> Optional[int]:
+        """Extract the duration (seconds) suggested by LLM from its response."""
+        if not raw:
+            return None
+        import re
+        for marker in ("DURATION:", "DURATION：", "Duration:"):
+            if marker in raw:
+                after = raw.split(marker, 1)[1].strip()
+                m = re.match(r"(\d+)", after)
+                if m:
+                    return int(m.group(1))
+        return None
+
     def _raise_if_cancelled(self, node_state: NodeState) -> None:
         if is_ai_transition_cancelled(self.server_cache_dir, node_state.session_id):
             raise RuntimeError("generate_ai_transition cancelled by user")
@@ -787,6 +801,7 @@ class GenerateAITransitionNode(BaseNode):
             to_frame_override,
         )
 
+        log = self._logger
         llm = node_state.llm
         meta_system_prompt = get_prompt("generate_ai_transition.system", lang=node_state.lang)
         meta_user_prompt = get_prompt("generate_ai_transition.user", lang=node_state.lang, user_request=user_request)
@@ -804,6 +819,18 @@ class GenerateAITransitionNode(BaseNode):
             model_preferences=None
         )
         prompt = self._extract_prompt(raw_response)
+        llm_duration = self._extract_duration(raw_response)
+        log.info("[transition] LLM raw response:\n%s", raw_response)
+        log.info("[transition] Extracted prompt (first 200 chars): %s",
+                 prompt[:200] if prompt else "(empty)")
+        log.info("[transition] LLM suggested duration=%s, user requested=%s",
+                 llm_duration, transition_duration)
+
+        # Duration priority: user request > LLM suggestion > provider default
+        effective_transition_duration = transition_duration or llm_duration
+        log.info("[transition] Final duration sent to video model: %s",
+                 effective_transition_duration)
+
         self._raise_if_cancelled(node_state)
 
         gen_video_path, _, effective_duration = self._generate_video(
@@ -813,7 +840,7 @@ class GenerateAITransitionNode(BaseNode):
             prompt=prompt,
             first_frame_data_url=encode_image_to_data_url(aligned_first_frame, max_long_edge=1280),
             last_frame_data_url=encode_image_to_data_url(aligned_last_frame, max_long_edge=1280),
-            duration=transition_duration,
+            duration=effective_transition_duration,
             resolution=resolution,
             output_dir=node_cache_dir,
             cancel_checker=lambda: is_ai_transition_cancelled(self.server_cache_dir, node_state.session_id),

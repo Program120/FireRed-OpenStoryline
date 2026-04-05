@@ -24,6 +24,16 @@ To ensure the AI generates a perfect result in a single pass, the English prompt
 4. **Anti-Hallucination Suffix:** The prompt must end with:
    `"High quality, cinematic masterpiece, absolutely no hard cuts, no sudden jumps, flawless transition."`
 
+5. **Choose the Right Duration (seconds):**
+   - **2s**: Two frames are visually similar, only minor changes (e.g., same scene different angle, slight lighting shift)
+   - **3s**: Two frames have clear differences but share common elements (e.g., same character different scene, similar composition)
+   - **4-5s**: Completely different scenes requiring heavy visual morphing (e.g., indoors→outdoors, day→night, entirely different environments)
+   Principle: **shorter is better** — just long enough for a natural transition. Overly long transitions feel sluggish.
+
 ## Output Format Requirements
 
-Output the English prompt directly, without any additional explanation or polite filler.
+First output the duration, then the prompt. No extra explanation.
+
+DURATION: 3
+
+PROMPT: ...
